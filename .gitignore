@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+# Never commit secrets: keys live in the macOS Keychain only.
+.env
+.env.*
+*.key
+*.pem
+proving-results.md

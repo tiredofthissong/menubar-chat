@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Strict: only this folder's own files; no inline script, no network. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Menu bar chat</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="shell">
+    <main class="chat" aria-label="Chat">
+      <header class="bar">
+        <label class="field">
+          <span class="sr-only">Project</span>
+          <select id="project" aria-label="Project"></select>
+        </label>
+        <span id="tag" class="pill">work</span>
+        <span id="mode" class="pill pill-quiet" title="Every change asks you first">Ask me first</span>
+        <span class="spacer"></span>
+        <span id="spend" class="meter num" aria-live="polite">$0.00 of $5</span>
+      </header>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section id="log" class="log" aria-live="polite" aria-label="Conversation"></section>
+
+      <section id="cards" class="cards" aria-label="Waiting on you"></section>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <label class="sr-only" for="input">Message</label>
+        <textarea id="input" rows="2" placeholder="Ask Claude to do something in this project…"></textarea>
+        <div class="composer-actions">
+          <button type="button" id="stop" class="btn btn-quiet" disabled>Stop</button>
+          <button type="submit" id="send" class="btn btn-primary">Send</button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="proving" aria-label="Proving checklist">
+      <header class="proving-head">
+        <h2>First Mac test</h2>
+        <p class="muted">Mark each one Pass or Fail. The app fills in what it can measure.</p>
+      </header>
+      <ol id="checks" class="checks"></ol>
+      <label class="pin"><input type="checkbox" id="pin"> Keep window open</label>
+      <div class="proving-actions">
+        <button type="button" id="copy" class="btn">Copy results</button>
+        <button type="button" id="save" class="btn btn-quiet">Save</button>
+      </div>
+    </aside>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>

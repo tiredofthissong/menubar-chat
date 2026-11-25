@@ -1,0 +1,23 @@
+{
+  "name": "menubar-chat",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A Mac menu bar chat window for working with Claude, without the Terminal. Proving kit (M0).",
+  "type": "module",
+  "main": "app/main.mjs",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.mjs\"",
+    "scratch": "node scripts/make-scratch.mjs",
+    "block-pushes": "node scripts/block-pushes.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.332",
+    "menubar": "9.5.3"
+  },
+  "devDependencies": {
+    "electron": "45.5.0"
+  }
+}
