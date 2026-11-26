@@ -27,6 +27,7 @@ export const SCENARIOS = {
   hello: [{ say: 'Hello from the fake Claude.\n' }],
   plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
   sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
+  trash: [{ say: 'Cleaning up.\n' }, { tool: 'Bash', input: { command: 'rm old-notes.txt' } }],
 };
 // Do an Edit for real (tests run in a temp folder) and report it the way Claude Code does.
 function applyEdit(cwd, input) {
@@ -38,7 +39,12 @@ function applyEdit(cwd, input) {
   fs.writeFileSync(file, [...lines.slice(0, i), after, ...lines.slice(i + 1)].join('\n'));
   return { ok: true, result: { filePath: file, structuredPatch: [{ oldStart: i + 1, oldLines: 1, newStart: i + 1, newLines: 1, lines: ['-' + lines[i], '+' + after] }] } };
 }
-const pick = (prompt) => SCENARIOS[Object.keys(SCENARIOS).find((k) => prompt.includes(`#${k}`)) || 'hello'];
+// A pasted Terminal line arrives as "Run exactly this as one command": run that command, like Claude would.
+const pick = (prompt) => {
+  const run = /^Run exactly this as one command[^\n]*\n```\n([\s\S]*?)\n```/.exec(prompt);
+  if (run) return [{ say: 'Running it.\n' }, { tool: 'Bash', input: { command: run[1] } }];
+  return SCENARIOS[Object.keys(SCENARIOS).find((k) => prompt.includes(`#${k}`)) || 'hello'];
+};
 
 function deniedByRule(rules, name, input) {
   return rules.some((r) => {

@@ -8,8 +8,9 @@ app.whenReady().then(() => setTimeout(async () => {
   const seen = await w.webContents.executeJavaScript(`({
     projects: [...document.querySelectorAll('#project option')].map((o) => o.textContent),
     tag: document.getElementById('tag').textContent,
-    checks: document.querySelectorAll('.check').length,
-    tryButtons: [...document.querySelectorAll('.check button')].filter((b) => b.textContent === 'Try it').length,
+    chatBoxes: document.querySelectorAll('textarea').length,
+    sidePanels: document.querySelectorAll('aside').length,
+    width: window.innerWidth,
     notice: document.getElementById('notice').hidden ? '' : document.getElementById('notice').textContent,
     spend: document.getElementById('spend').textContent,
   })`);
@@ -63,10 +64,43 @@ app.whenReady().then(() => setTimeout(async () => {
   w.off('resize', count);
   console.log('SMOKE-SCROLL ' + JSON.stringify({ startAtBottom: start.max - start.top <= 40, scrolledUpBy: start.top - up.top,
     stayedUp: Math.abs(afterNew.top - up.top) <= 2, jumpShown: afterNew.jump, followsAtBottom: follow.max - follow.top <= 40 && !follow.jump, idleResizes: resizes }));
+  // Milestone 2: a delete card, a change card and a typo hint, the way the helper sends them.
+  const project = await w.webContents.executeJavaScript(`document.getElementById('project').value`);
+  const say = (ev) => w.webContents.send('event', { project, ...ev });
+  say({ type: 'hint', kind: 'slash-typo', suggestion: 'design-rules', text: "There's no /desgin-rules in this project. Did you mean /design-rules?" });
+  say({ type: 'change', id: 'toolu_smoke', file: 'notes.txt', sentence: 'Changed 1 line in notes.txt. Why: notes.txt has a typo.', canUndo: true,
+    diff: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-teh notes', '+the notes'] }] });
+  say({ type: 'approval', card: { id: 'smoke-card', toolName: 'Bash', danger: true, trash: true, defaultChoice: 'deny', command: 'git pull && rm old-notes.txt',
+    items: [{ say: 'Download the latest changes', target: '', danger: false }, { say: 'DELETE files', target: 'old-notes.txt', danger: true }] } });
+  await new Promise((r) => setTimeout(r, 400));
+  const card = await w.webContents.executeJavaScript(`(() => { const c = document.querySelector('.card'); return {
+    red: c.classList.contains('danger'), ask: c.querySelector('.card-ask').textContent, steps: [...c.querySelectorAll('.card-steps li')].map((l) => l.textContent),
+    buttons: [...c.querySelectorAll('.card-actions button')].map((b) => [b.textContent, b.className]), focusedInCard: c.contains(document.activeElement),
+    change: document.querySelector('.change summary')?.textContent, undo: document.querySelector('.change button')?.textContent,
+    fix: [...document.querySelectorAll('.line-hint button')].map((b) => b.textContent) }; })()`);
+  console.log('SMOKE-CARD ' + JSON.stringify(card));
+  // Keyboard: Tab from the top reaches every control, in order, and each shows a focus ring.
+  await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.body.focus()`);
+  const walk = [];
+  for (let i = 0; i < 20; i++) {
+    w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' }); w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    await new Promise((r) => setTimeout(r, 60));
+    walk.push(await w.webContents.executeJavaScript(`(() => { const a = document.activeElement; if (!a || a === document.body) return null;
+      const name = (a.id ? '#' + a.id : a.tagName.toLowerCase()) + (a.tagName === 'BUTTON' || a.tagName === 'SUMMARY' ? ':' + a.textContent.trim().slice(0, 22) : '');
+      return { name, ring: getComputedStyle(a).outlineStyle !== 'none' && a.matches(':focus-visible') }; })()`));
+  }
+  const reach = await w.webContents.executeJavaScript(`[...document.querySelectorAll('button, select, textarea, summary, [tabindex="0"]')]
+    .filter((n) => !n.disabled && n.offsetParent !== null && !n.closest('details:not([open]) > :not(summary)')).map((a) => (a.id ? '#' + a.id : a.tagName.toLowerCase()) + (a.tagName === 'BUTTON' || a.tagName === 'SUMMARY' ? ':' + a.textContent.trim().slice(0, 22) : ''))`);
+  const tabbed = [...new Set(walk.filter(Boolean).map((x) => x.name))];
+  console.log('SMOKE-TAB ' + JSON.stringify({ controls: reach.length, reached: tabbed.length, missed: reach.filter((n) => !tabbed.includes(n)), allRinged: walk.filter(Boolean).every((x) => x.ring), order: tabbed }));
   if (process.env.SMOKE_SHOT) {
-    w.show(); await new Promise((r) => setTimeout(r, 800));
     const fs = await import('node:fs');
+    w.show(); await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.querySelector('.log').scrollTop = 1e9`);
+    await new Promise((r) => setTimeout(r, 500));
     fs.writeFileSync(process.env.SMOKE_SHOT, (await w.webContents.capturePage()).toPNG());
+    await w.webContents.executeJavaScript(`document.documentElement.dataset.theme = 'dark'`);
+    await new Promise((r) => setTimeout(r, 400));
+    fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-dark.png'), (await w.webContents.capturePage()).toPNG());
   }
   app.quit();
 }, 3000));

@@ -17,7 +17,6 @@ contextBridge.exposeInMainWorld('menubarChat', {
   fit: (height) => ipcRenderer.send('fit', height),
   activity: (a) => ipcRenderer.send('activity', a),
   copy: (text) => ipcRenderer.send('copy', text),
-  saveResults: (text) => ipcRenderer.invoke('save-results', text),
   onEvent: (fn) => {
     const handler = (_e, ev) => fn(ev);
     ipcRenderer.on('event', handler);

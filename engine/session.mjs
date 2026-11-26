@@ -4,6 +4,7 @@
 // Failure rule: anything unexpected ends the turn and DENIES whatever is waiting.
 import { event } from '../shared/contract.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
+import { classifyInput } from '../shared/input.mjs';
 import { ApprovalBroker } from '../policy/approvals.mjs';
 import { makePreToolUseHook } from '../policy/hook.mjs';
 import { checkToolCall } from '../policy/rules.mjs';
@@ -40,7 +41,9 @@ export class ProjectSession {
       onOpen: (card) => { this.approvals++; this.cards(); this.emit(event('approval', { card })); },
       onClose: (id, decision, why, toolUseID) => {
         if (decision !== 'allow' && toolUseID) { this.explained.add(toolUseID); this.changes.forget(toolUseID); }
-        this.cards(); this.emit(event('approval_closed', { id, decision, why }));
+        // Claude gets the long reason; the window gets a short one.
+        const said = why.startsWith('You chose Move to Trash') ? 'You chose Move to Trash instead.' : why;
+        this.cards(); this.emit(event('approval_closed', { id, decision, why: said }));
       },
     });
   }
@@ -131,15 +134,14 @@ export class ProjectSession {
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
     // Typing while a card waits answers the card: it's a "no", with the words as the reason.
     if (this.broker.size) this.broker.denyAll('You sent a new message instead, so it was not run.');
-    const slash = text.match(/^\/([\w:-]+)/)?.[1];
-    if (slash && this.slashCommands?.length && !this.slashCommands.includes(slash)) {
-      const known = this.slashCommands.slice(0, 8).map((c) => '/' + c).join(', ');
-      this.emit(event('hint', { text: `/${slash} isn't a command in ${this.project.name}, so nothing was sent. Some that are: ${known}.` }));
-      return;
-    }
+    // Pasted Terminal lines, "claude ...", "!cmd" and mistyped /commands get one calm line.
+    const c = classifyInput(text, { commands: this.slashCommands?.length ? this.slashCommands : null, project: this.project.name });
+    if (c.note) this.emit(event('hint', { kind: c.kind, text: c.note, ...(c.suggestion ? { suggestion: c.suggestion } : {}) }));
+    if (c.action === 'newChat') { this.resume(null); this.emit(event('session', { sessionId: null, mode: this.mode })); }
+    if (!c.send) return;
     if (!this.q) this.start();
     this.setStatus('thinking');
-    this.input.push({ type: 'user', session_id: this.sessionId || '', parent_tool_use_id: null, message: { role: 'user', content: text } });
+    this.input.push({ type: 'user', session_id: this.sessionId || '', parent_tool_use_id: null, message: { role: 'user', content: c.send } });
   }
 
   answer(id, decision) { return this.broker.answer(id, decision); }

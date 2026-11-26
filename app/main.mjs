@@ -22,14 +22,14 @@ const SCRATCH = process.env.MENUBAR_SCRATCH || path.join(app.getPath('home'), 'm
 const HOTKEY = 'Control+Alt+Command+C';
 const CAP_USD = 5; // per day, across all projects (Bromo's pick, Nov 26)
 const TUCK_AFTER_MS = 5000;
-const WIDTH = 780; const MIN_HEIGHT = 560; // the window grows from here to fit, up to the bottom of the screen
+const WIDTH = 480; const MIN_HEIGHT = 480; // the window grows from here to fit, up to the bottom of the screen
 const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let projects = []; let spentUsd = 0; let pendingCards = 0;
 let mb = null; let animator = null; let openStartedAt = 0; let tuckTimer = null; let hotkeyOk = false;
-let activity = { hovered: false, typing: false, pinned: false };
+let activity = { hovered: false, typing: false };
 
 function loadProjects() {
   try {
@@ -97,7 +97,7 @@ function notifyApproval(ev) {
 function scheduleTuck() {
   clearTimeout(tuckTimer);
   tuckTimer = setTimeout(() => {
-    if (!mb.window?.isVisible() || activity.hovered || activity.typing || activity.pinned || pendingCards > 0) return;
+    if (!mb.window?.isVisible() || activity.hovered || activity.typing || pendingCards > 0) return;
     mb.hideWindow();
   }, TUCK_AFTER_MS);
 }
@@ -140,16 +140,9 @@ function wireIpc() {
   });
   ipcMain.on('activity', (e, a) => {
     if (!fromOurWindow(e)) return;
-    activity = { hovered: !!a?.hovered, typing: !!a?.typing, pinned: !!a?.pinned };
+    activity = { hovered: !!a?.hovered, typing: !!a?.typing };
   });
   ipcMain.on('copy', (e, text) => { if (fromOurWindow(e)) clipboard.writeText(redact(String(text)).slice(0, 20000)); });
-  ipcMain.handle('save-results', (e, text) => {
-    if (!fromOurWindow(e)) return null;
-    const file = path.join(ROOT, 'proving-results.md'); // git-ignored
-    fs.writeFileSync(file, redact(String(text)).slice(0, 50000));
-    shell.showItemInFolder(file);
-    return file;
-  });
 }
 
 app.whenReady().then(() => {

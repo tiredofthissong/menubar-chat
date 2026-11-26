@@ -1,344 +1,141 @@
-// app.js - the window. Plain script (no imports), runs sandboxed with only window.menubarChat.
-// Every piece of text from Claude or a file goes in with textContent, never innerHTML.
+// app.js - the chat window: one chat box, no shell box. Plain script, runs sandboxed with only
+// window.menubarChat. The parts live in dom.js, log.js (the conversation) and cards.js (approvals).
 'use strict';
 (() => {
   const api = window.menubarChat;
-  const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const { $, el, button } = window.ChatDom;
+  const Log = window.ChatLog; const Cards = window.ChatCards;
 
-  // The nine checks from the v1 plan's Mac test (step 13).
-  const CHECKS = [
-    { id: 'popup', name: 'Pops up in under 1 second', how: 'Click the menu bar icon, then press Control-Option-Command-C. Do each a few times.' },
-    { id: 'tuck', name: 'Tucks away the usual ways', how: 'Each should hide it: press Esc, click somewhere else, press the hotkey again.' },
-    { id: 'autotuck', name: 'Tucks itself away after a reply', how: 'Send a message and move the pointer off the window. It hides about 5 seconds after the reply, but not while you hover, type, or have a card open.' },
-    { id: 'icon', name: 'Icon moves, and holds still with Reduce Motion', how: 'Watch the icon while Claude works. Then turn on System Settings > Accessibility > Display > Reduce motion and try again.' },
-    { id: 'hover', name: 'Hover line says what is happening', how: 'Hold the pointer over the menu bar icon while Claude works and while a card waits.' },
-    { id: 'chain', name: 'A chained command arrives as one card that lists every step', how: 'Try it on personal-demo. You should see one card with three numbered steps.', tryIt: { project: 'personal-demo', prompt: 'Get the latest changes from origin, make the folder .claude/skills/demo-skill, and copy kit/demo-skill/SKILL.md into it. Use one shell command joined with &&.' } },
-    { id: 'why', name: 'An edit comes with a "Why:" line', how: 'Try it on personal-demo. Look for a green "Why:" line before the change card.', tryIt: { project: 'personal-demo', prompt: 'Fix the spelling mistake in notes.txt.' } },
-    { id: 'push', name: 'A push on a work project is blocked', how: 'Try it on work-demo. Approve the edit and commit; the push should be refused without a card.', tryIt: { project: 'work-demo', prompt: "Add a line 'checked' to notes.txt, commit it, and push it to origin." } },
-    { id: 'notify', name: 'A notification appears while the window is hidden', how: 'Send a message that needs a change, then hide the window before the card shows. Click Review on the notification.' },
-  ];
-
-  const state = {
-    projects: [], current: null, info: null,
-    results: Object.fromEntries(CHECKS.map((c) => [c.id, { mark: null, auto: '' }])),
-    opens: [], logs: new Map(), bubble: new Map(), busy: new Set(), lastTry: new Map(), cards: new Map(), modes: new Map(), undos: new Map(),
+  const state = { projects: [], current: null, busy: new Set(), modes: new Map(), cards: new Map() };
+  const MODE = {
+    default: ['Ask me first', 'Every change asks you first. Click for Plan first: Claude only reads and plans until you approve the plan.'],
+    plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan. Click to go back to Ask me first.'],
   };
-  const MODE = { default: ['Ask me first', 'Every change asks you first. Click for Plan first: Claude only reads and plans until you approve the plan.'],
-    plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan. Click to go back to Ask me first.'] };
   const said = (r) => { if (r && r.ok === false) notice(r.error || r.text, true); };
 
-  // ---- Notices ----
   function notice(text, bad) {
     const n = $('notice');
     if (!text) { n.hidden = true; return; }
     n.textContent = text; n.className = bad ? 'notice bad' : 'notice'; n.hidden = false;
   }
-
-  // ---- Log per project ----
-  function logFor(project) {
-    if (!state.logs.has(project)) {
-      const box = el('div', 'project-log');
-      box.append(el('p', 'empty', 'Ask for something small in this test project. Anything that changes a file or runs a command asks you first.'));
-      state.logs.set(project, box);
-    }
-    return state.logs.get(project);
-  }
-  // Scrolling: follow new messages only while you're at the bottom (see scroll.js).
-  const S = window.ChatScroll;
-  let stick = true;
-  const jump = el('button', 'jump btn btn-small', 'Jump to latest'); jump.type = 'button'; jump.hidden = true;
-  function toBottom() { const log = $('log'); log.scrollTop = log.scrollHeight; stick = true; jump.hidden = true; }
-  function followIfStuck() { if (stick) toBottom(); else jump.hidden = false; }
-  function showLog() {
-    $('log').replaceChildren(logFor(state.current), jump);
-    toBottom();
-  }
-  function add(project, node) {
-    const box = logFor(project); box.querySelector('.empty')?.remove();
-    box.append(node);
-    if (project === state.current) followIfStuck();
-  }
-  // Claude's reply arrives a line or so at a time. Keep the raw text and redraw the bubble with
-  // real headings, lists and code blocks each time (markdown.js builds elements, never HTML).
-  const MD = window.ChatMarkdown;
-  const sources = new WeakMap(); // bubble -> the raw text so far
-  function addText(project, text) {
-    let b = state.bubble.get(project);
-    if (!b) { b = el('div', 'msg msg-claude md', ''); sources.set(b, ''); state.bubble.set(project, b); add(project, b); }
-    sources.set(b, sources.get(b) + text);
-    b.replaceChildren(MD.render(sources.get(b), document));
-    if (project === state.current) followIfStuck();
-  }
-  const addLine = (project, text, cls = '') => { state.bubble.delete(project); add(project, el('div', `line ${cls}`.trim(), text)); };
-  // What changed and why, with Undo (refused if the file changed again since).
-  function addChange(project, ch) {
-    const row = el('div', 'line line-change'); row.append(el('span', '', ch.sentence));
-    if (ch.canUndo) {
-      const b = el('button', 'btn btn-small btn-quiet', 'Undo'); b.type = 'button';
-      b.addEventListener('click', () => api.undo(project, ch.id).then(said));
-      state.undos.set(ch.id, b); row.append(b);
-    }
-    state.bubble.delete(project); add(project, row);
-  }
   function showMode() {
     const m = state.modes.get(state.current) || 'default';
     $('mode').textContent = MODE[m][0]; $('mode').title = MODE[m][1]; $('mode').setAttribute('aria-pressed', String(m === 'plan'));
   }
-
-  // ---- Approval cards ----
-  function renderCard(project, card) {
-    const c = el('article', card.danger ? 'card danger' : 'card');
-    c.setAttribute('aria-label', `Claude is asking you, in ${project}`);
-    c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
-    const items = Array.isArray(card.items) && card.items.length > 1 ? card.items : null;
-    // One plain line first. A chained command lists every step below it, so the line only counts them.
-    c.append(el('p', 'card-ask', items ? `Run ${items.length} steps, in this order:` : (card.plain || `Use ${card.toolName}.`)));
-    if (items) {
-      const ol = el('ol', 'card-steps');
-      for (const it of items) {
-        const li = el('li', it.danger ? 'danger' : '');
-        li.append(el('span', 'step-say', it.say));
-        if (it.target) li.append(el('span', 'step-target', it.target));
-        ol.append(li);
-      }
-      c.append(ol);
-    } else if (Array.isArray(card.steps) && card.steps.length > 1) { // older card shape: raw steps
-      const ol = el('ol', 'card-steps');
-      for (const s of card.steps) ol.append(el('li', /^(sudo\s+)?rm\b/.test(s) ? 'danger' : '', s));
-      c.append(ol);
-    }
-    if (card.danger) c.append(el('p', 'card-warn', 'This deletes files. Deleted files may not come back.'));
-    if (card.command) {
-      const d = el('details'); d.append(el('summary', '', 'Show the exact command'), el('code', '', card.command));
-      c.append(d);
-    }
-    const row = el('div', 'card-actions');
-    // Same look for both, and nothing pre-selected: a stray Enter can't approve.
-    const deny = el('button', 'btn', 'Deny'); deny.type = 'button';
-    const allow = el('button', 'btn', 'Allow once'); allow.type = 'button';
-    deny.addEventListener('click', () => api.answer(project, card.id, 'deny').then(said));
-    allow.addEventListener('click', () => api.answer(project, card.id, 'allow').then(said));
-    row.append(deny, allow); c.append(row);
-    state.cards.set(card.id, c);
-    $('cards').append(c);
+  function showSpend(spent, cap) {
+    $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
+    $('spend').classList.toggle('near', spent >= cap * 0.8);
+  }
+  function setBusy(project, busy) {
+    if (busy) state.busy.add(project); else state.busy.delete(project);
+    if (project === state.current) $('stop').disabled = !busy;
   }
 
-  // ---- Checklist ----
-  function renderChecks() {
-    const ol = $('checks'); ol.replaceChildren();
-    for (const c of CHECKS) {
-      const li = el('li', 'check'); li.dataset.id = c.id;
-      li.append(el('div', 'check-name', c.name), el('div', 'check-how', c.how));
-      const auto = el('div', 'check-auto', state.results[c.id].auto); auto.dataset.auto = c.id; li.append(auto);
-      const row = el('div', 'check-row');
-      for (const [mark, label] of [['pass', 'Pass'], ['fail', 'Fail']]) {
-        const b = el('button', `btn btn-small ${mark}`, label); b.type = 'button';
-        b.setAttribute('aria-pressed', String(state.results[c.id].mark === mark));
-        b.addEventListener('click', () => { state.results[c.id].mark = state.results[c.id].mark === mark ? null : mark; saveMarks(); renderChecks(); });
-        row.append(b);
-      }
-      if (c.tryIt) {
-        const t = el('button', 'btn btn-small btn-quiet', 'Try it'); t.type = 'button';
-        t.addEventListener('click', () => tryIt(c));
-        row.append(t);
-      }
-      li.append(row); ol.append(li);
-    }
-  }
-  function setAuto(id, text) {
-    state.results[id].auto = text;
-    const n = document.querySelector(`[data-auto="${id}"]`); if (n) n.textContent = text;
-  }
-  function tryIt(check) {
-    const p = state.projects.find((x) => x.name === check.tryIt.project);
-    if (!p) { notice(`There's no ${check.tryIt.project} project. Run "npm run scratch" first.`, true); return; }
-    selectProject(p.name);
-    $('input').value = check.tryIt.prompt; $('input').focus(); sendActivity();
-    state.lastTry.set(p.name, check.id);
-  }
-
-  // ---- Results ----
-  function resultsText() {
-    const i = state.info || {};
-    const lines = ['# Menu bar chat: first Mac test', '',
-      `- App ${i.versions?.app || '?'} · Electron ${i.versions?.electron || '?'} · ${i.versions?.os || '?'}`,
-      `- Key in Keychain: ${i.keychainOk ? 'yes' : 'no'} · Hotkey: ${i.hotkey || 'not registered'} · Reduce Motion: ${i.reducedMotion ? 'on' : 'off'}`,
-      `- Spent: ${$('spend').textContent}`, ''];
-    CHECKS.forEach((c, n) => {
-      const r = state.results[c.id];
-      lines.push(`${n + 1}. ${r.mark === 'pass' ? 'PASS' : r.mark === 'fail' ? 'FAIL' : 'not marked'} · ${c.name}${r.auto ? ` (app saw: ${r.auto})` : ''}`);
-    });
-    return lines.join('\n');
-  }
-
-  // ---- Sending ----
   function selectProject(name) {
     state.current = name; $('project').value = name;
     const p = state.projects.find((x) => x.name === name);
     $('tag').textContent = p?.tag === 'personal' ? 'personal' : 'work';
     $('stop').disabled = !state.busy.has(name);
-    showMode(); showLog();
+    for (const [, c] of state.cards) c.node.hidden = c.project !== name;
+    showMode(); Log.show(name);
   }
+
   function send() {
     const text = $('input').value.trim();
     if (!text || !state.current) return;
-    if (!state.lastTry.has(state.current)) state.lastTry.set(state.current, null);
-    state.bubble.delete(state.current);
-    stick = true; // your own message always brings you back to the newest
-    add(state.current, el('div', 'msg msg-you', text));
+    Log.you(state.current, text);
     api.send(state.current, text).then(said);
-    state.busy.add(state.current); $('stop').disabled = false;
-    $('input').value = ''; sendActivity();
+    setBusy(state.current, true);
+    $('input').value = ''; activity();
   }
   let hovered = false;
-  const sendActivity = () => api.activity({ hovered, typing: document.activeElement === $('input') && $('input').value.length > 0, pinned: $('pin').checked });
+  const activity = () => api.activity({ hovered, typing: document.activeElement === $('input') && $('input').value.length > 0 });
 
-  // ---- Events from the app ----
-  const turnApprovals = new Map();
+  function openCard(project, card) {
+    const node = Cards.render(project, card, {
+      answer: (decision) => { Cards.settle(node); api.answer(project, card.id, decision).then(said); },
+      copy: (t) => { api.copy(t); notice('Command copied.'); },
+    });
+    node.hidden = project !== state.current;
+    state.cards.set(card.id, { node, project });
+    $('cards').append(node);
+    if (project !== state.current) notice(`Waiting on you in ${project}.`);
+  }
+  function closeCard(id) { state.cards.get(id)?.node.remove(); state.cards.delete(id); }
+
+  const NOT_SENT = new Set(['empty', 'slash-typo', 'slash-unknown', 'slash-app', 'slash-terminal']);
+  // A mistyped /command: the one-line fix comes with a button that puts the right one in the box.
+  function hint(p, ev) {
+    let fix = null;
+    if (ev.kind === 'slash-typo' && ev.suggestion) {
+      fix = button(`Use /${ev.suggestion}`, 'btn btn-small btn-quiet', () => { $('input').value = `/${ev.suggestion}`; $('input').focus(); });
+    }
+    Log.line(p, ev.text, 'line-hint', fix);
+    if (NOT_SENT.has(ev.kind)) setBusy(p, false);
+  }
+
   function onEvent(ev) {
     const p = ev.project;
     switch (ev.type) {
-      case 'text': addText(p, ev.text); break;
-      case 'tool': addLine(p, ev.line); break;
-      case 'approval':
-        turnApprovals.set(p, { count: (turnApprovals.get(p)?.count || 0) + 1, steps: Math.max(turnApprovals.get(p)?.steps || 0, ev.card.steps?.length || 0) });
-        renderCard(p, ev.card);
-        if (p !== state.current) notice(`Waiting on you in ${p}.`);
-        break;
-      case 'approval_closed': {
-        state.cards.get(ev.id)?.remove(); state.cards.delete(ev.id);
-        addLine(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.'));
-        break;
-      }
-      case 'blocked':
-        addLine(p, `Blocked: ${ev.plain}`, 'line-blocked');
-        if (/push/i.test(`${ev.rule} ${ev.plain}`)) setAuto('push', `push refused before any card (${ev.rule})`);
-        break;
-      case 'tool_failed': addLine(p, ev.text); break;
-      case 'hint': addLine(p, ev.text); break;
-      case 'change': addChange(p, ev); break;
-      case 'undo_result': {
-        const b = state.undos.get(ev.id); if (b && ev.ok) { b.disabled = true; b.textContent = 'Undone'; }
-        addLine(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
-      }
-      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); addLine(p, `Mode: ${ev.label}.`); break;
+      case 'text': Log.text(p, ev.text); break;
+      case 'tool': Log.line(p, ev.line); break;
+      case 'approval': openCard(p, ev.card); break;
+      case 'approval_closed': closeCard(ev.id); Log.line(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.')); break;
+      case 'blocked': Log.line(p, `Blocked: ${ev.plain}`, 'line-blocked'); break;
+      case 'tool_failed': Log.line(p, ev.text); break;
+      case 'hint': hint(p, ev); break;
+      case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.line(p, 'New chat started.'); } break;
+      case 'change': Log.change(p, ev, (id) => api.undo(p, id).then(said)); break;
+      case 'undo_result': if (ev.ok) Log.undone(ev.id); Log.line(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
+      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); Log.line(p, `Mode: ${ev.label}.`); break;
+      case 'why': if (!ev.seen) Log.line(p, 'No "Why:" line came before this change.'); break;
       case 'usage':
         $('spend').title = `Model: Sonnet. This chat: $${(ev.chatUsd ?? 0).toFixed(2)}${ev.contextPct == null ? '' : `, ${ev.contextPct}% of its memory used`}. Spending stops at the daily cap and starts over at midnight.`;
         break;
-      case 'why':
-        addLine(p, ev.seen ? `Why: ${ev.why}` : 'No "Why:" line came before this change.', ev.seen ? 'line-why' : '');
-        setAuto('why', ev.seen ? `Why line seen: "${ev.why.slice(0, 60)}"` : 'edit arrived with no Why line');
-        break;
-      case 'turn_done': {
-        state.bubble.delete(p); state.busy.delete(p);
-        if (p === state.current) $('stop').disabled = true;
-        const spend = $('spend');
-        spend.textContent = `$${ev.spentUsd.toFixed(2)} of $${ev.capUsd} today`;
-        spend.classList.toggle('near', ev.spentUsd >= ev.capUsd * 0.8);
-        const t = turnApprovals.get(p); turnApprovals.delete(p);
-        if (state.lastTry.get(p) === 'chain') setAuto('chain', t ? `${t.count} card(s), ${t.steps} steps listed` : 'no card appeared');
-        state.lastTry.delete(p);
-        break;
-      }
-      case 'error':
-        state.busy.delete(p); if (p === state.current) $('stop').disabled = true;
-        notice(`${p}: ${ev.text}`, true); addLine(p, ev.text, 'line-blocked');
-        break;
-      case 'opened': {
-        if (typeof ev.ms === 'number') {
-          state.opens.push(ev.ms);
-          const worst = Math.max(...state.opens);
-          setAuto('popup', `${state.opens.length} opens, slowest ${worst} ms${worst < 1000 ? '' : ' (over 1 second)'}`);
-        }
-        $('input').focus(); fit();
-        break;
-      }
-      case 'notified': setAuto('notify', `notification sent for ${p}`); break;
+      case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd); break;
+      case 'error': setBusy(p, false); notice(`${p}: ${ev.text}`, true); Log.line(p, ev.text, 'line-blocked'); break;
+      case 'opened': $('input').focus(); Log.fit(); break;
       default: break;
     }
   }
 
-  // ---- Window size: grow to fit the conversation and cards, so the chat box never gets cut off ----
-  let fitQueued = false;
-  const sizeChanged = S.makeSizeGate();
-  function fit() {
-    if (fitQueued) return; fitQueued = true;
-    requestAnimationFrame(() => {
-      fitQueued = false;
-      // Natural heights, not the squeezed ones, so growing the window doesn't feed back on itself.
-      const log = $('log'); const cards = $('cards'); const notice = $('notice');
-      const logContent = (log.firstElementChild?.offsetHeight || 0) + 24; // content plus the log's own padding
-      const cardsContent = cards.childElementCount ? cards.scrollHeight : 0;
-      const noticeHeight = notice.hidden ? 0 : notice.offsetHeight + 12; // plus its top margin
-      const wanted = Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + logContent + cardsContent + $('composer').offsetHeight);
-      if (sizeChanged(wanted)) api.fit(wanted); // the same size again would only resize the window for nothing
-    });
-  }
-  new ResizeObserver(() => { if (stick) toBottom(); }).observe($('log')); // the window grew or shrank: stay at the newest if you were there
-
-  // Reading back: any scroll away from the bottom stops the follow; a wheel turn that didn't move
-  // the conversation is applied by hand (backup for trackpads and mice).
-  $('log').addEventListener('scroll', () => { stick = S.isAtBottom($('log')); jump.hidden = stick; }, { passive: true });
-  $('log').addEventListener('wheel', (ev) => {
-    const log = $('log'); const before = log.scrollTop; const px = S.wheelPixels(ev, log.clientHeight);
-    requestAnimationFrame(() => requestAnimationFrame(() => S.fallbackScroll(log, before, px)));
-  }, { passive: true });
-  jump.addEventListener('click', toBottom);
-  new ResizeObserver(fit).observe($('cards'));
-  new MutationObserver(fit).observe($('log'), { childList: true, subtree: true, characterData: true });
-  new ResizeObserver(fit).observe($('notice'));
-
-  // ---- Remember Pass/Fail marks across restarts (this Mac only) ----
-  const MARKS_KEY = 'proving-marks-v1';
-  try {
-    const saved = JSON.parse(localStorage.getItem(MARKS_KEY) || '{}');
-    for (const [id, mark] of Object.entries(saved)) if (state.results[id] && (mark === 'pass' || mark === 'fail')) state.results[id].mark = mark;
-  } catch { /* nothing saved, or storage unavailable */ }
-  const saveMarks = () => {
-    try { localStorage.setItem(MARKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(state.results).map(([id, r]) => [id, r.mark])))); } catch { /* fine */ }
-  };
-
-  // ---- Wiring ----
   async function start() {
-    renderChecks();
+    Log.init(api);
     api.onEvent(onEvent);
-    const info = await api.init();
-    state.info = info || {};
-    state.projects = info?.projects || [];
-    const sel = $('project');
-    for (const p of state.projects) sel.append(el('option', '', p.name));
-    const spent = info?.spentUsd ?? 0; const cap = info?.capUsd ?? 5;
-    $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
-    $('spend').title = `Model: ${info?.model || 'Sonnet'}. Spending stops at the daily cap and starts over at midnight.`;
-    $('spend').classList.toggle('near', spent >= cap * 0.8);
+    const info = (await api.init()) || {};
+    state.projects = info.projects || [];
+    for (const p of state.projects) $('project').append(el('option', '', p.name));
+    showSpend(info.spentUsd ?? 0, info.capUsd ?? 5);
+    $('spend').title = `Model: ${info.model || 'Sonnet'}. Spending stops at the daily cap and starts over at midnight.`;
     if (!state.projects.length) {
-      notice('No test projects yet. In Terminal, run "npm run scratch", then quit and reopen the app.', true);
+      notice('No projects yet. In Terminal, run "npm run scratch", then quit and reopen the app.', true);
       $('send').disabled = true; $('input').disabled = true;
-    } else {
-      selectProject(state.projects[0].name);
-      if (!info.keychainOk) notice('No API key in the Keychain yet. Do step 7 of the Mac test, then quit and reopen.', true);
-      else if (!info.hotkey) notice('The hotkey Control-Option-Command-C is taken by another app. The menu bar icon still works.');
+      return;
     }
-    if (info?.reducedMotion) setAuto('icon', 'Reduce Motion is on, so the icon should hold still');
+    selectProject(state.projects[0].name);
+    if (!info.keychainOk) notice('No API key in the Keychain yet, so Claude can\'t answer. See the README, then quit and reopen.', true);
+    else if (!info.hotkey) notice('The hotkey Control-Option-Command-C is taken by another app. The menu bar icon still works.');
   }
 
   $('project').addEventListener('change', (e) => selectProject(e.target.value));
   $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
   $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
-  $('input').addEventListener('input', sendActivity);
-  $('input').addEventListener('blur', sendActivity);
-  $('pin').addEventListener('change', sendActivity);
+  $('input').addEventListener('input', activity);
+  $('input').addEventListener('blur', activity);
   $('stop').addEventListener('click', () => state.current && api.stop(state.current).then(said));
   $('mode').addEventListener('click', () => {
     if (!state.current) return;
     api.setMode(state.current, (state.modes.get(state.current) || 'default') === 'plan' ? 'default' : 'plan').then(said);
   });
-  $('copy').addEventListener('click', () => { api.copy(resultsText()); notice('Results copied. Paste them in our chat.'); });
-  $('save').addEventListener('click', async () => { const f = await api.saveResults(resultsText()); if (f) notice('Saved as proving-results.md in the app folder.'); });
-  document.addEventListener('mouseenter', () => { hovered = true; sendActivity(); });
-  document.addEventListener('mouseleave', () => { hovered = false; sendActivity(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') api.hide(); });
+  document.addEventListener('mouseenter', () => { hovered = true; activity(); });
+  document.addEventListener('mouseleave', () => { hovered = false; activity(); });
+  // Esc tucks the window away, unless it's closing an open "Show the exact command" first.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const open = document.activeElement?.closest?.('details[open]');
+    if (open) { open.open = false; open.querySelector('summary')?.focus(); return; }
+    api.hide();
+  });
 
   start();
 })();

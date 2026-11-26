@@ -60,10 +60,9 @@ test('modes: only Ask me first and Plan first, starting in Ask me first', () => 
   assert.equal(requestMode('acceptEdits').ok, false);
 });
 
-// The 200-line budget keeps each file small enough to read in one go.
-// app/window/app.js is the proving-kit window; milestone 2 rebuilds it in smaller parts.
+// The 200-line budget keeps each file small enough to read in one go. No exceptions.
 const BUDGET = 200;
-const EXEMPT = new Set(['app/window/app.js']);
+const EXEMPT = new Set();
 test('every source file is 200 lines or fewer', () => {
   const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
   const skip = new Set(['node_modules', 'test', '.git', 'dist', 'out']);

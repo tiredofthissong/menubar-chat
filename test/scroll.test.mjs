@@ -51,11 +51,11 @@ test('the window is asked to resize only when the size really changed', () => {
 
 test('the window wires it up: scroll.js loads first, the log follows only when at the bottom', () => {
   const html = fs.readFileSync(new URL('../app/window/index.html', import.meta.url), 'utf8');
-  assert.ok(html.indexOf('src="scroll.js"') > -1 && html.indexOf('src="scroll.js"') < html.indexOf('src="app.js"'));
-  const js = fs.readFileSync(new URL('../app/window/app.js', import.meta.url), 'utf8');
-  const addText = /function addText[\s\S]*?\n  \}/.exec(js)[0];
+  assert.ok(html.indexOf('src="scroll.js"') > -1 && html.indexOf('src="scroll.js"') < html.indexOf('src="log.js"'));
+  const js = fs.readFileSync(new URL('../app/window/log.js', import.meta.url), 'utf8');
+  const addText = /function text\([\s\S]*?\n  \}/.exec(js)[0];
   assert.doesNotMatch(addText, /scrollTop/, 'streamed text must not force the view to the bottom');
-  assert.match(addText, /followIfStuck/);
+  assert.match(addText, /follow\(\)/);
   assert.match(js, /addEventListener\('wheel'/);
   const css = fs.readFileSync(new URL('../app/window/app.css', import.meta.url), 'utf8');
   assert.match(css, /\.log \{[^}]*overflow-y: auto/);

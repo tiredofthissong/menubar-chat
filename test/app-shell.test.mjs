@@ -44,16 +44,27 @@ test('window: strict content policy, plain script, no innerHTML', () => {
   const html = read('app/window/index.html');
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'/);
   assert.doesNotMatch(html, /<script>(?!<\/script>)/, 'no inline script');
-  for (const f of ['app/window/app.js', 'app/window/markdown.js']) {
+  for (const f of ['app/window/app.js', 'app/window/markdown.js', 'app/window/log.js', 'app/window/cards.js', 'app/window/dom.js', 'app/window/scroll.js']) {
     assert.doesNotMatch(code(f), /innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/, f);
   }
 });
 
-test('approval buttons: Allow and Deny look the same and neither is pre-selected', () => {
-  const js = read('app/window/app.js');
-  assert.match(js, /el\('button', 'btn', 'Deny'\)/);
-  assert.match(js, /el\('button', 'btn', 'Allow once'\)/);
-  assert.doesNotMatch(js, /autofocus|\.focus\(\)[^;]*allow/i);
+test('approval buttons: every answer looks the same and none is pre-selected; deletes offer Move to Trash', () => {
+  const js = code('app/window/cards.js');
+  assert.match(js, /button\('Deny', 'btn', /);
+  assert.match(js, /button\(danger \? 'Delete for good' : 'Allow once', 'btn', /);
+  assert.match(js, /if \(card\.trash === true\) row\.append\(button\('Move to Trash instead', 'btn', /);
+  assert.doesNotMatch(js, /autofocus|\.focus\(/i);
+  assert.ok(js.indexOf("'Deny'") < js.indexOf("'Allow once'"), 'Deny comes first');
+});
+
+test('one chat box and no shell box; the proving checklist is gone', () => {
+  const html = read('app/window/index.html');
+  assert.equal((html.match(/<textarea/g) || []).length, 1);
+  assert.equal((html.match(/<input\b/g) || []).length, 0);
+  assert.doesNotMatch(html, /proving|checks/);
+  const order = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(order, ['dom.js', 'scroll.js', 'markdown.js', 'log.js', 'cards.js', 'app.js'], 'helpers load before the scripts that use them');
 });
 
 test('styles follow the design rules', () => {
@@ -68,7 +79,8 @@ test('main process: sandboxed window, sender checks on every message, vetted out
   const main = read('app/main.mjs');
   assert.match(main, /contextIsolation: true, sandbox: true, nodeIntegration: false/);
   const handlers = main.match(/ipcMain\.(on|handle)\('[^']+'/g) || [];
-  assert.ok(handlers.length >= 7);
+  assert.ok(handlers.length >= 6);
+  assert.doesNotMatch(main, /save-results/, 'the proving kit is gone');
   for (const h of handlers) {
     const name = h.match(/'([^']+)'/)[1];
     const body = main.slice(main.indexOf(h), main.indexOf(h) + 160);

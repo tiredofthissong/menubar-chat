@@ -105,7 +105,8 @@ test('a slash command this project does not have gets a one-line fix, and nothin
   await h.next((e) => e.type === 'turn_done');
   await h.cmd('send', { text: '/desgin-rules' });
   const hint = await h.next((e) => e.type === 'hint');
-  assert.match(hint.text, /\/desgin-rules isn't a command in personal-demo/);
+  assert.match(hint.text, /There's no \/desgin-rules in personal-demo\. Did you mean \/design-rules\?/);
+  assert.equal(hint.kind, 'slash-typo');
   assert.match(hint.text, /\/design-rules/);
   assert.equal(h.of('turn_done').length, 1);
 });

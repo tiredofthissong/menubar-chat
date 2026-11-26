@@ -6,11 +6,15 @@
 //   - timeout denies; no timer ever approves
 //   - an answer counts once; a second answer to the same card is refused
 //   - "allow" means allow ONCE: updatedPermissions ("always allow") is never returned
+//   - "trash" (delete cards only) is a "no" too: the rm never runs; Claude is told to move
+//     the same files to the Trash instead, which asks you again on a new card
 // Flow idea (pending map + race against the abort signal) from T3 Code (MIT), rewritten;
 // adapted from this project's code-health architect prototype.
 import { randomUUID } from 'node:crypto';
 
 export const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
+export const TRASH_INSTEAD = 'You chose Move to Trash instead, so nothing was deleted. Do not delete these files. '
+  + 'Move the same files to ~/.Trash/ with mv -n (it never overwrites), then say in one sentence what moved and anything left behind.';
 
 export class ApprovalBroker {
   /** @param {{ onOpen: (card) => void, onClose: (id, decision, why, toolUseID) => void, timeoutMs?: number }} opts */
@@ -19,6 +23,7 @@ export class ApprovalBroker {
     this.onClose = onClose;
     this.timeoutMs = timeoutMs;
     this.pending = new Map(); // id -> settle(decision, why)
+    this.danger = new Set();  // ids of delete cards (the only ones that offer Move to Trash)
   }
 
   get size() { return this.pending.size; }
@@ -32,6 +37,7 @@ export class ApprovalBroker {
       const onAbort = () => settle('deny', 'Stopped before you answered, so it was not run.');
       const settle = (decision, why) => {
         if (!this.pending.delete(id)) return; // answered already: ignore
+        this.danger.delete(id);
         if (timer) clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
         const allowed = decision === 'allow';
@@ -41,10 +47,11 @@ export class ApprovalBroker {
           : { behavior: 'deny', message: why || 'You said no, so it was not run.', toolUseID });
       };
       this.pending.set(id, settle);
+      if (card.danger === true) this.danger.add(id);
       if (signal?.aborted) return onAbort();
       signal?.addEventListener('abort', onAbort, { once: true });
       if (this.timeoutMs > 0) { timer = setTimeout(() => settle('deny', 'No answer in time, so it was not run.'), this.timeoutMs); }
-      this.onOpen({ id, toolName, ...card, defaultChoice: 'deny' });
+      this.onOpen({ id, toolName, ...card, trash: card.danger === true, defaultChoice: 'deny' });
     });
   }
 
@@ -54,6 +61,7 @@ export class ApprovalBroker {
     if (!settle) return false;
     // Strict equality on purpose. Do not "normalize" this (no toLowerCase, no trim).
     if (typeof decision === 'string' && decision === 'allow') settle('allow');
+    else if (decision === 'trash' && this.danger.has(id)) settle('deny', TRASH_INSTEAD);
     else settle('deny', 'You said no, so it was not run.');
     return true;
   }

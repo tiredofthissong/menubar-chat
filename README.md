@@ -2,7 +2,7 @@
 
 A small Mac menu bar window for working with Claude Code without the Terminal. Every change asks you first, work projects can't push anywhere, and it runs on its own separately billed API key.
 
-**Where it stands:** milestone 1 of v1 is in. The proving kit (M0) passed its Mac test, and the engine now runs the way v1 will: in a background helper, with change cards, Undo and two modes. The window is still the proving-kit window until milestone 2 rebuilds it. It is not the finished app.
+**Where it stands:** milestones 1 and 2 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes, and the window is the v1 chat window: one chat box, plain approval cards, Move to Trash for deletes. It is not the finished app yet.
 
 ## What's real and what isn't yet
 
@@ -10,14 +10,16 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 |---|---|
 | Engine: one Claude Code session per project, through the official Claude Agent SDK, in a background helper the window talks to over Electron's own messaging (no network port) | Real, tested |
 | Two modes: **Ask me first** (default) and **Plan first**. Click the mode button to switch | Real, tested |
-| Change cards: every file change shows one plain sentence, Claude's reason, and an **Undo** button | Real, tested |
+| Change cards: every file change shows one plain sentence, Claude's reason, the change itself one click away, and an **Undo** button | Real, tested |
+| One chat box, no Terminal: pasted Terminal lines become one command Claude runs after you allow it; `claude ...`, `!cmd` and mistyped /commands get a one-line fix | Real, tested |
+| Delete cards are red and offer **Move to Trash instead** (the delete never runs; Claude asks again to move the files to your Trash) | Real, tested |
 | Safety: Allow or Deny card for every change, push block on work projects, secret files refused, $5 daily cap, Sonnet | Real, tested |
 | Key: read from your Mac's Keychain by Claude Code itself; never stored in a file | Real (needs step 7 below) |
 | Menu bar: icon, hotkey Control-Option-Command-C, hover line, notifications, tuck-away | Real, needs your Mac to check |
 | Projects | Only the two throwaway test projects that `npm run scratch` makes |
 | Packaged app you double-click | Not yet (milestone 6) |
 
-## First Mac test
+## Setting it up
 
 The full steps, with the likely barriers, are in the v1 build plan doc. In short, in Terminal:
 
@@ -36,7 +38,9 @@ Before `npm start`, the API key goes into the Keychain (you paste it when asked;
 security add-generic-password -s claude-menubar-anthropic -a "$USER" -w
 ```
 
-Then work through the nine checks on the right side of the window, press **Copy results**, and paste them into our chat.
+Already set up? To get a new milestone: `git pull`, then `npm install`, then quit the app from its menu bar icon and run `npm start` again.
+
+**Keys in the window:** Enter sends, Shift-Enter starts a new line, Tab moves between controls, Esc tucks the window away.
 
 **Each of these waits for your yes at the time:** installing Node (if you don't have it), creating the API key (it costs money), saving it in the Keychain, `npm install`, adding the push block, and allowing notifications.
 
