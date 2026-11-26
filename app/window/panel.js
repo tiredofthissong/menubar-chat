@@ -47,23 +47,8 @@ window.ChatPanel = (() => {
     s.append(list, row);
     return s;
   }
-  /** Type owner/name or paste a link; the app copies it to ~/GitHub and adds it as Personal. */
-  function githubRow(where) {
-    where.querySelector('.github-add')?.remove();
-    const form = el('form', 'confirm github-add'); form.setAttribute('aria-label', 'Add a repo from GitHub');
-    const input = el('input', 'github-input'); input.type = 'text'; input.placeholder = 'owner/repo or a GitHub link';
-    input.setAttribute('aria-label', 'GitHub repo'); input.spellcheck = false;
-    const go = button('Copy and add', 'btn btn-small', () => {}); go.type = 'submit';
-    const actions = el('div', 'confirm-actions'); actions.append(button('Cancel', 'btn btn-small', () => form.remove()), go);
-    form.append(el('p', '', 'It goes in ~/GitHub on this Mac, tagged Personal.'), input, actions);
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault(); if (!input.value.trim()) return;
-      go.disabled = true; go.textContent = 'Copying…';
-      const r = say(await ctx.api.addGithub(input.value));
-      if (r?.ok) { ctx.setProjects(r.projects); ctx.select(r.added); render(); } else { go.disabled = false; go.textContent = 'Copy and add'; }
-    });
-    where.append(form); input.focus();
-  }
+  /** Pick from your repos or type one; the app copies it to ~/GitHub and adds it as Personal (github-row.js). */
+  function githubRow(where) { window.ChatGithubRow.open(where, ctx, say, (r) => { ctx.setProjects(r.projects); ctx.select(r.added); render(); }); }
   async function bringBack(p, b) {
     b.disabled = true; ctx.notice(`Copying ${p.name} back from GitHub…`);
     const r = say(await ctx.api.bringBack(p.name));

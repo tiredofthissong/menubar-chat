@@ -9,6 +9,7 @@ import { loadProjects, refuseFolder, addProject, setTag, setAway } from './proje
 import { whyNotPutAway } from './put-away.mjs';
 import { blockPushes, pushBlockState } from '../scripts/block-pushes.mjs';
 import { parseRepo, cloneRepo } from './github.mjs';
+import { listRepos } from './github-list.mjs';
 
 const disk = { read: (f) => fs.readFileSync(f, 'utf8'), exists: (p) => fs.existsSync(p) };
 
@@ -16,7 +17,7 @@ const disk = { read: (f) => fs.readFileSync(f, 'utf8'), exists: (p) => fs.exists
  * @param {{ ipcMain, dialog, window: () => object, fromOurWindow: (e) => boolean, home: string,
  *   userFile: string, scratchFile: string, onChange: (list: Array) => void }} d
  */
-export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, userFile, scratchFile, onChange, clone = cloneRepo, trash = async () => { throw new Error('no Trash'); }, check = whyNotPutAway }) {
+export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, userFile, scratchFile, onChange, clone = cloneRepo, repos = listRepos, trash = async () => { throw new Error('no Trash'); }, check = whyNotPutAway }) {
   let list = loadProjects([userFile, scratchFile], disk);
   let picked = null; // the folder the Mac's picker returned, waiting for its tag
 
@@ -45,6 +46,8 @@ export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, u
     const next = addProject(list, picked, tag); picked = null;
     return { ...save(next), added: next.at(-1).name };
   }));
+  // Your GitHub repos for the drop-down: names only, never the sign-in.
+  ipcMain.handle('projects:githubList', guard(async () => repos()));
   // From GitHub: the window sends only the typed repo name; the folder is built from it here.
   ipcMain.handle('projects:github', guard(async (text) => {
     const ref = parseRepo(text);

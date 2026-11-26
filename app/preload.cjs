@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('menubarChat', {
   // Project actions the app does itself. The folder comes from the Mac's own picker, never from here.
   pickFolder: () => ipcRenderer.invoke('projects:pick'),
   addFolder: (tag) => ipcRenderer.invoke('projects:add', tag),
+  listGithub: () => ipcRenderer.invoke('projects:githubList'), // names only; the GitHub sign-in stays in the app
   addGithub: (repo) => ipcRenderer.invoke('projects:github', String(repo).slice(0, 300)),
   putAway: (project) => ipcRenderer.invoke('projects:putAway', project),
   bringBack: (project) => ipcRenderer.invoke('projects:bringBack', project),
