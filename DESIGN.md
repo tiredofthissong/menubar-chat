@@ -23,6 +23,14 @@ The most important screen in the app.
 - **Deny** and **Allow once** look the same and neither is selected, so a stray Enter can't approve. Deny comes first.
 - There's no "always allow".
 
+## The conversation
+
+- The window grows to fit the conversation and cards, up to the bottom of the screen. Past that, the conversation scrolls and the chat box stays put.
+- The scrollbar always shows (macOS hides its overlay scrollbars), so it's clear there's more above.
+- New messages keep you at the newest one only while you're already there. Scroll up to read back and you stay put; a **Jump to latest** button appears instead. Sending a message brings you back to the bottom.
+- If a trackpad or wheel turn doesn't move the conversation, the window moves it itself (backup in `scroll.js`).
+
 ## Not yet
 
-Window size is fixed at 780 by 600 for the proving kit. The v1 chat window (milestone 2) gets its own layout pass, with the checklist panel removed.
+- The v1 chat window (milestone 2) gets its own layout pass, with the checklist panel removed.
+- **Start at Mac login** (Bromo, Nov 26): the packaged app (milestone 6) adds itself as a login item with Electron's `app.setLoginItemSettings({ openAtLogin: true })`, behind a "Start at login" switch that's off until Bromo turns it on. Turning it on is a Mac setting he approves at that step.

@@ -30,6 +30,33 @@ app.whenReady().then(() => setTimeout(async () => {
     barTop: Math.round(document.querySelector('.bar').getBoundingClientRect().top),
   })`);
   console.log('SMOKE-FIT ' + JSON.stringify({ before, after: w.getBounds().height, ...fit }));
+  // Reading back: a wheel turn scrolls up, a new message then doesn't yank you down, and the window
+  // stops resizing once it has the size it wants.
+  const look = () => w.webContents.executeJavaScript(`(() => { const l = document.getElementById('log'); const r = l.getBoundingClientRect();
+    return { top: Math.round(l.scrollTop), max: l.scrollHeight - l.clientHeight, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+      jump: !document.querySelector('.jump').hidden }; })()`);
+  await w.webContents.executeJavaScript(`document.querySelector('.cards').replaceChildren(); document.querySelector('#log .empty')?.remove()`);
+  await w.webContents.executeJavaScript(`document.querySelector('.jump').click()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const start = await look();
+  w.focus();
+  for (let i = 0; i < 4; i++) { w.webContents.sendInputEvent({ type: 'mouseWheel', x: start.x, y: start.y, deltaX: 0, deltaY: 200, canScroll: true }); await new Promise((r) => setTimeout(r, 80)); }
+  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 300));
+  const up = await look();
+  // app.js's add() is private, so drive it the way the app does: through a Claude reply event.
+  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').value`)), text: ' more' });
+  await new Promise((r) => setTimeout(r, 300));
+  const afterNew = await look();
+  await w.webContents.executeJavaScript(`document.querySelector('.jump').click()`);
+  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').value`)), text: ' and more lines\n'.repeat(8) });
+  await new Promise((r) => setTimeout(r, 300));
+  const follow = await look();
+  let resizes = 0; const count = () => { resizes += 1; }; w.on('resize', count);
+  await new Promise((r) => setTimeout(r, 1500));
+  w.off('resize', count);
+  console.log('SMOKE-SCROLL ' + JSON.stringify({ startAtBottom: start.max - start.top <= 40, scrolledUpBy: start.top - up.top,
+    stayedUp: Math.abs(afterNew.top - up.top) <= 2, jumpShown: afterNew.jump, followsAtBottom: follow.max - follow.top <= 40 && !follow.jump, idleResizes: resizes }));
   if (process.env.SMOKE_SHOT) {
     w.show(); await new Promise((r) => setTimeout(r, 800));
     const fs = await import('node:fs');

@@ -41,20 +41,26 @@
     }
     return state.logs.get(project);
   }
+  // Scrolling: follow new messages only while you're at the bottom (see scroll.js).
+  const S = window.ChatScroll;
+  let stick = true;
+  const jump = el('button', 'jump btn btn-small', 'Jump to latest'); jump.type = 'button'; jump.hidden = true;
+  function toBottom() { const log = $('log'); log.scrollTop = log.scrollHeight; stick = true; jump.hidden = true; }
+  function followIfStuck() { if (stick) toBottom(); else jump.hidden = false; }
   function showLog() {
-    const log = $('log'); log.replaceChildren(logFor(state.current));
-    log.scrollTop = log.scrollHeight;
+    $('log').replaceChildren(logFor(state.current), jump);
+    toBottom();
   }
   function add(project, node) {
     const box = logFor(project); box.querySelector('.empty')?.remove();
     box.append(node);
-    if (project === state.current) { const log = $('log'); log.scrollTop = log.scrollHeight; }
+    if (project === state.current) followIfStuck();
   }
   function addText(project, text) {
     let b = state.bubble.get(project);
     if (!b) { b = el('div', 'msg msg-claude', ''); state.bubble.set(project, b); add(project, b); }
     b.textContent += text;
-    if (project === state.current) { const log = $('log'); log.scrollTop = log.scrollHeight; }
+    if (project === state.current) followIfStuck();
   }
   const addLine = (project, text, cls = '') => { state.bubble.delete(project); add(project, el('div', `line ${cls}`.trim(), text)); };
 
@@ -145,6 +151,7 @@
     if (!text || !state.current) return;
     if (!state.lastTry.has(state.current)) state.lastTry.set(state.current, null);
     state.bubble.delete(state.current);
+    stick = true; // your own message always brings you back to the newest
     add(state.current, el('div', 'msg msg-you', text));
     api.send(state.current, text);
     state.busy.add(state.current); $('stop').disabled = false;
@@ -210,6 +217,7 @@
 
   // ---- Window size: grow to fit the conversation and cards, so the chat box never gets cut off ----
   let fitQueued = false;
+  const sizeChanged = S.makeSizeGate();
   function fit() {
     if (fitQueued) return; fitQueued = true;
     requestAnimationFrame(() => {
@@ -219,9 +227,20 @@
       const logContent = (log.firstElementChild?.offsetHeight || 0) + 24; // content plus the log's own padding
       const cardsContent = cards.childElementCount ? cards.scrollHeight : 0;
       const noticeHeight = notice.hidden ? 0 : notice.offsetHeight + 12; // plus its top margin
-      api.fit(Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + logContent + cardsContent + $('composer').offsetHeight));
+      const wanted = Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + logContent + cardsContent + $('composer').offsetHeight);
+      if (sizeChanged(wanted)) api.fit(wanted); // the same size again would only resize the window for nothing
     });
   }
+  new ResizeObserver(() => { if (stick) toBottom(); }).observe($('log')); // the window grew or shrank: stay at the newest if you were there
+
+  // Reading back: any scroll away from the bottom stops the follow; a wheel turn that didn't move
+  // the conversation is applied by hand (backup for trackpads and mice).
+  $('log').addEventListener('scroll', () => { stick = S.isAtBottom($('log')); jump.hidden = stick; }, { passive: true });
+  $('log').addEventListener('wheel', (ev) => {
+    const log = $('log'); const before = log.scrollTop; const px = S.wheelPixels(ev, log.clientHeight);
+    requestAnimationFrame(() => requestAnimationFrame(() => S.fallbackScroll(log, before, px)));
+  }, { passive: true });
+  jump.addEventListener('click', toBottom);
   new ResizeObserver(fit).observe($('cards'));
   new MutationObserver(fit).observe($('log'), { childList: true, subtree: true, characterData: true });
   new ResizeObserver(fit).observe($('notice'));
