@@ -116,7 +116,7 @@ export function devModeAllows(toolName, input = {}, root, card = {}) {
 /** Does this step only read or search inside the project folder? (Nothing from the web or elsewhere.) */
 export function looksInside(toolName, input = {}, root) {
   const i = input || {};
-  if (toolName === 'TodoWrite') return true;
+  if (['TodoWrite', 'AskUserQuestion', 'ExitPlanMode'].includes(toolName)) return true; // asking you isn't reading elsewhere
   if (READS.has(toolName)) return !looksOutside(toolName, i, root);
   return toolName === 'Bash' && commandEffect(splitSteps(i.command), false) === 'looks' && commandStaysIn(i.command, root, 'looks');
 }

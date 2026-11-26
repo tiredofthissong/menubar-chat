@@ -8,13 +8,17 @@
 // (Bromo, Nov 26: Claude looked at garden.js, then built the page here). After the web, a file
 // outside the folder or any other step, words from there could have written the request, so the
 // chat says so and you ask again.
-export const HANDOFF_RULE = 'Big jobs go to Claude Code in Claude\'s desktop app, which runs on the person\'s Claude subscription: '
-  + 'building a feature or an app across several files, a large rewrite, research across many sources, or long multi-step work. '
-  + 'Making a new page, screen or feature counts. For a big job you may read files in this project folder to understand it, '
-  + 'but change nothing, run nothing and use no web tools: do not start the work. Reply with one plain sentence saying it is a big job and you are handing it to Claude Code, '
-  + 'then a last line that starts with "Handoff:" followed by the whole request as a clear prompt for Claude Code, on one line: what to do, '
-  + 'what you already know about this project, and anything the person asked for. Questions, explanations and small fixes you do here as usual. '
-  + 'If the person says to do it here, do it here.';
+// Bromo, Nov 26: on a fertiliser page Claude read the spec, asked questions, planned, then built it
+// here when he said "build". Planning here is fine and cheap; the building is what moves.
+export const HANDOFF_RULE = 'Big jobs are built in Claude Code in Claude\'s desktop app, which runs on the person\'s Claude subscription: '
+  + 'building a feature, page, screen or app, changes across several files, a large rewrite, research across many sources, or long multi-step work. '
+  + 'For a big job you may read files in this project folder, ask the person questions and agree a plan here, but do not change files, run commands or use web tools for it. '
+  + 'When the work itself would start (the plan is agreed, or the person says build, go, start or do it), hand it off instead of doing it, '
+  + 'even when this project\'s own rules describe a build step: the building happens in Claude Code. '
+  + 'To hand off, reply with one plain sentence saying you are handing the build to Claude Code, '
+  + 'then a last line that starts with "Handoff:" followed by the whole request as a clear prompt for Claude Code, on one line: what to build, '
+  + 'the agreed plan and the person\'s answers, what you know about this project, and that the person already said to build. '
+  + 'Questions, explanations and small fixes you do here as usual. If the person says to do it here, do it here.';
 export const MAX_HANDOFF = 5000;
 const LINE = /^\s*(?:[-*]\s+)?(?:\*\*)?Handoff:(?:\*\*)?\s*(.*?)\s*$/i;
 

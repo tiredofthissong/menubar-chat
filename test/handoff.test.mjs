@@ -48,6 +48,8 @@ test('the app opens only an automatic hand-off of the right shape, and says so i
 test('Claude here is told which jobs to hand off', () => {
   const o = buildQueryOptions({ mode: 'default', project: { path: '/p', name: 'p' }, canUseTool: () => {}, preToolUseHook: () => {}, keychainService: KEYCHAIN_SERVICE });
   assert.match(o.systemPrompt.append, /Handoff:/);
+  assert.match(o.systemPrompt.append, /plan here/, 'planning stays here');
+  assert.match(o.systemPrompt.append, /project's own rules describe a build step/, 'a project rule like "wait for build" still hands off (Bromo, Nov 26)');
 });
 
 function setup(t) {
@@ -94,4 +96,5 @@ test('hand-off: only reading and searching inside the folder counts as looking',
   assert.equal(looksInside('Bash', { command: 'npm test' }, root), false);
   assert.equal(looksInside('WebFetch', { url: 'https://example.com' }, root), false);
   assert.equal(looksInside('Write', { file_path: '/work/garden/x.js' }, root), false);
+  assert.equal(looksInside('AskUserQuestion', { questions: [] }, root), true, 'questions to you, then a plan, then the hand-off');
 });
