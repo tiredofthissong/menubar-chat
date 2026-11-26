@@ -1,5 +1,5 @@
 // panel.js - the two drop-down panels under the top bar. Plain script.
-//   Projects: switch project, add a folder (Work or Personal), start a new chat, pick up a past
+//   Projects: switch project, add a folder (Work or Personal) or a GitHub repo, start a new chat, pick up a past
 //             chat, change the tag, and add the push block to a work repo.
 //   Usage:    today against the daily cap, this chat in dollars, how much of Claude's memory
 //             this chat has used, and the learning log by Claude Academy course.
@@ -40,8 +40,27 @@ window.ChatPanel = (() => {
       confirm(s, `Is "${r.folder}" work or personal? Work never pushes to GitHub or touches your personal hub.`, 'Work', 'Personal',
         () => saveFolder('personal'), () => saveFolder('work'));
     });
-    s.append(list, add);
+    const fromGithub = button('Add from GitHub…', 'btn btn-small btn-quiet', () => githubRow(s));
+    const row = el('div', 'confirm-actions'); row.append(add, fromGithub);
+    s.append(list, row);
     return s;
+  }
+  /** Type owner/name or paste a link; the app copies it to ~/GitHub and adds it as Personal. */
+  function githubRow(where) {
+    where.querySelector('.github-add')?.remove();
+    const form = el('form', 'confirm github-add'); form.setAttribute('aria-label', 'Add a repo from GitHub');
+    const input = el('input', 'github-input'); input.type = 'text'; input.placeholder = 'owner/repo or a GitHub link';
+    input.setAttribute('aria-label', 'GitHub repo'); input.spellcheck = false;
+    const go = button('Copy and add', 'btn btn-small', () => {}); go.type = 'submit';
+    const actions = el('div', 'confirm-actions'); actions.append(button('Cancel', 'btn btn-small', () => form.remove()), go);
+    form.append(el('p', '', 'It goes in ~/GitHub on this Mac, tagged Personal.'), input, actions);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault(); if (!input.value.trim()) return;
+      go.disabled = true; go.textContent = 'Copying…';
+      const r = say(await ctx.api.addGithub(input.value));
+      if (r?.ok) { ctx.setProjects(r.projects); ctx.select(r.added); render(); } else { go.disabled = false; go.textContent = 'Copy and add'; }
+    });
+    where.append(form); input.focus();
   }
   async function saveFolder(tag) {
     const r = say(await ctx.api.addFolder(tag));

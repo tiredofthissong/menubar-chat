@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadProjects, refuseFolder, addProject, setTag } from './projects.mjs';
 import { blockPushes, pushBlockState } from '../scripts/block-pushes.mjs';
+import { parseRepo, cloneRepo } from './github.mjs';
 
 const disk = { read: (f) => fs.readFileSync(f, 'utf8'), exists: (p) => fs.existsSync(p) };
 
@@ -13,7 +14,7 @@ const disk = { read: (f) => fs.readFileSync(f, 'utf8'), exists: (p) => fs.exists
  * @param {{ ipcMain, dialog, window: () => object, fromOurWindow: (e) => boolean, home: string,
  *   userFile: string, scratchFile: string, onChange: (list: Array) => void }} d
  */
-export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, userFile, scratchFile, onChange }) {
+export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, userFile, scratchFile, onChange, clone = cloneRepo }) {
   let list = loadProjects([userFile, scratchFile], disk);
   let picked = null; // the folder the Mac's picker returned, waiting for its tag
 
@@ -40,6 +41,19 @@ export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, u
     if (!picked) return { ok: false, error: 'Pick a folder first.' };
     const next = addProject(list, picked, tag); picked = null;
     return { ...save(next), added: next.at(-1).name };
+  }));
+  // From GitHub: the window sends only the typed repo name; the folder is built from it here.
+  ipcMain.handle('projects:github', guard(async (text) => {
+    const ref = parseRepo(text);
+    if (!ref) return { ok: false, error: 'Type the repo as owner/name, or paste its GitHub link.' };
+    const r = await clone(ref, home);
+    if (!r.ok) return r;
+    const have = list.find((p) => p.path === r.folder);
+    if (have) return { ok: true, projects: view(), added: have.name, text: `${have.name} is already in your list.` };
+    const why = refuseFolder(r.folder, { home, list });
+    if (why) return { ok: false, error: why };
+    const next = addProject(list, r.folder, 'personal');
+    return { ...save(next), added: next.at(-1).name, text: `${r.reused ? 'Added' : 'Copied and added'} ${ref.repo} from GitHub. It lives in ~/GitHub/${ref.repo}.` };
   }));
   ipcMain.handle('projects:tag', guard(async (name, tag) => {
     if (!list.some((p) => p.name === name) || !['work', 'personal'].includes(tag)) return { ok: false, error: 'There is no project by that name.' };
