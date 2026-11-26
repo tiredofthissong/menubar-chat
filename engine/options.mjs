@@ -13,6 +13,8 @@ import { denyRules } from '../policy/rules.mjs';
 export const SAFE_ENV_KEYS = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR', 'TERM', 'SSH_AUTH_SOCK'];
 export const CLIENT_APP = 'menubar-chat/0.0.1';
 export const KEYCHAIN_SERVICE = 'claude-menubar-anthropic';
+// Bromo's pick (Nov 26): Sonnet, about half the cost of Opus. The alias follows the latest Sonnet.
+export const DEFAULT_MODEL = 'sonnet';
 export const WHY_RULE = 'Before each file edit, write one short line that starts with "Why:" saying why you are making it.';
 
 export function safeEnv(source = process.env) {
@@ -33,6 +35,7 @@ const KEYCHAIN_NAME = /^[A-Za-z0-9._-]{3,64}$/;
  * @param {string[]} [a.hubPaths]
  * @param {string|null} [a.resumeId]
  * @param {number|null} [a.budgetUsd]
+ * @param {string} [a.model]             defaults to DEFAULT_MODEL
  * @param {Function|null} [a.spawn]        tests only: replaces the Claude Code binary
  */
 export function buildQueryOptions(a) {
@@ -42,6 +45,7 @@ export function buildQueryOptions(a) {
 
   const options = {
     cwd: a.project.path,
+    model: a.model || DEFAULT_MODEL, // always written out, so Claude Code's own default (Opus) never applies
     permissionMode: a.mode,
     canUseTool: a.canUseTool,
     hooks: { PreToolUse: [{ hooks: [a.preToolUseHook], onFailure: 'block' }] },

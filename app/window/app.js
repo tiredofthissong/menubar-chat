@@ -190,7 +190,7 @@
         state.bubble.delete(p); state.busy.delete(p);
         if (p === state.current) $('stop').disabled = true;
         const spend = $('spend');
-        spend.textContent = `$${ev.spentUsd.toFixed(2)} of $${ev.capUsd}`;
+        spend.textContent = `$${ev.spentUsd.toFixed(2)} of $${ev.capUsd} today`;
         spend.classList.toggle('near', ev.spentUsd >= ev.capUsd * 0.8);
         const t = turnApprovals.get(p); turnApprovals.delete(p);
         if (state.lastTry.get(p) === 'chain') setAuto('chain', t ? `${t.count} card(s), ${t.steps} steps listed` : 'no card appeared');
@@ -264,7 +264,10 @@
     state.projects = info?.projects || [];
     const sel = $('project');
     for (const p of state.projects) sel.append(el('option', '', p.name));
-    $('spend').textContent = `$0.00 of $${info?.capUsd ?? 5}`;
+    const spent = info?.spentUsd ?? 0; const cap = info?.capUsd ?? 5;
+    $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
+    $('spend').title = `Model: ${info?.model || 'Sonnet'}. Spending stops at the daily cap and starts over at midnight.`;
+    $('spend').classList.toggle('near', spent >= cap * 0.8);
     if (!state.projects.length) {
       notice('No test projects yet. In Terminal, run "npm run scratch", then quit and reopen the app.', true);
       $('send').disabled = true; $('input').disabled = true;

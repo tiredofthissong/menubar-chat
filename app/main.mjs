@@ -12,7 +12,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { ProjectSession } from '../engine/session.mjs';
 import { StatusBoard } from '../engine/status.mjs';
 import { Budget } from '../engine/budget.mjs';
-import { KEYCHAIN_SERVICE } from '../engine/options.mjs';
+import { KEYCHAIN_SERVICE, DEFAULT_MODEL } from '../engine/options.mjs';
 import { redact } from '../engine/redact.mjs';
 import { Animator } from './animator.mjs';
 
@@ -21,7 +21,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
 const SCRATCH = process.env.MENUBAR_SCRATCH || path.join(app.getPath('home'), 'menubar-scratch');
 const HOTKEY = 'Control+Alt+Command+C';
-const CAP_USD = 5;
+const CAP_USD = 5; // per day, across all projects (Bromo's pick, Nov 26)
 const TUCK_AFTER_MS = 5000;
 const WIDTH = 780; const MIN_HEIGHT = 560; // the window grows from here to fit, up to the bottom of the screen
 const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
@@ -29,7 +29,14 @@ const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 if (!app.requestSingleInstanceLock()) app.quit();
 
 const status = new StatusBoard();
-const budget = new Budget(CAP_USD);
+// Today's spend survives restarts: a tiny JSON file in the app's own folder (day + total, nothing else).
+const spendFile = () => path.join(app.getPath('userData'), 'spend-today.json');
+const budget = new Budget(CAP_USD, {
+  store: {
+    load: () => JSON.parse(fs.readFileSync(spendFile(), 'utf8')),
+    save: (v) => { fs.mkdirSync(path.dirname(spendFile()), { recursive: true }); fs.writeFileSync(spendFile(), JSON.stringify(v)); },
+  },
+});
 const sessions = new Map();
 let projects = [];
 let mb = null; let animator = null; let openStartedAt = 0; let tuckTimer = null; let hotkeyOk = false;
@@ -93,7 +100,7 @@ function sessionFor(name) {
   if (!sessions.has(name)) {
     sessions.set(name, new ProjectSession({
       project, sdk: { query }, emit: onEvent, status, budget,
-      settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'] },
+      settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'], model: DEFAULT_MODEL },
     }));
   }
   return sessions.get(name);
@@ -115,7 +122,7 @@ function wireIpc() {
     return {
       projects: projects.map(({ name, tag }) => ({ name, tag })),
       scratch: SCRATCH, keychainOk: await keychainHasKey(), hotkey: hotkeyOk ? 'Control+Option+Command+C' : null,
-      capUsd: CAP_USD, reducedMotion: Animator.reducedMotion(systemPreferences),
+      capUsd: CAP_USD, spentUsd: budget.spent, model: 'Sonnet', reducedMotion: Animator.reducedMotion(systemPreferences),
       versions: { app: app.getVersion(), electron: process.versions.electron, os: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim() },
     };
   });

@@ -9,7 +9,7 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Part | State |
 |---|---|
 | Engine: one Claude Code session per project, through the official Claude Agent SDK | Real |
-| Safety: Allow or Deny card for every change, push block on work projects, secret files refused, $5 cap per run | Real, tested |
+| Safety: Allow or Deny card for every change, push block on work projects, secret files refused, $5 daily cap, Sonnet | Real, tested |
 | Key: read from your Mac's Keychain by Claude Code itself; never stored in a file | Real (needs step 7 below) |
 | Menu bar: icon, hotkey Control-Option-Command-C, hover line, notifications, tuck-away | Real, needs your Mac to check |
 | Projects | Only the two throwaway test projects that `npm run scratch` makes |

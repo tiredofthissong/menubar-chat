@@ -59,7 +59,7 @@ export class ProjectSession {
       preToolUseHook: makePreToolUseHook({ project: this.project, hubPaths: this.settings.hubPaths,
         onBlocked: (rule, plain, toolUseID) => { if (toolUseID) this.explained.add(toolUseID); this.emit({ type: 'blocked', rule, plain }); } }),
       keychainService: this.settings.keychainService ?? null, resumeId: this.sessionId,
-      budgetUsd: this.budget.left, spawn: this.settings.spawn,
+      budgetUsd: this.budget.left, spawn: this.settings.spawn, model: this.settings.model,
     });
     const q = this.sdk.query({ prompt: this.input, options });
     this.q = q;
@@ -131,7 +131,7 @@ export class ProjectSession {
   }
 
   send(text) {
-    if (this.budget.reached) { this.emit({ type: 'error', code: 'budget', text: `This test run reached its $${this.budget.capUsd} cap, so nothing more was sent.` }); return; }
+    if (this.budget.reached) { this.emit({ type: 'error', code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` }); return; }
     // Typing while a card waits answers the card: it's a "no", with the words as the reason.
     if (this.broker.size) { this.broker.denyAll('You sent a new message instead, so it was not run.'); }
     if (!this.q) this.start();
