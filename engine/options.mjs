@@ -22,6 +22,7 @@ export const WHY_RULE = 'Before each file edit, command, web lookup or other ste
 export const USER_RULE = 'The person uses this chat app instead of a terminal or code editor, and is new to coding. '
   + 'Never ask them to edit a file, run a command or open an editor themselves: offer to do it, and do it when they say yes (the app asks them before each change). '
   + 'When something truly must be theirs, make it a click in the app or a page in their browser, with exact steps. '
+  + 'Explain in plain words what you will change and what they will see; leave out code, file formats and syntax rules unless they ask for them. '
   + 'Before you call work done or suggest a demo, run the tests and checks this project has (or add a small one), say in one line what you checked and what is still untested, and fix what fails first.';
 
 export function safeEnv(source = process.env) {
@@ -44,6 +45,7 @@ const KEYCHAIN_NAME = /^[A-Za-z0-9._-]{3,64}$/;
  * @param {number|null} [a.budgetUsd]
  * @param {string} [a.model]             defaults to DEFAULT_MODEL
  * @param {Function|null} [a.spawn]        tests only: replaces the Claude Code binary
+ * @param {number} [a.hookTimeoutSec]      the hook may wait on a card, so it gets a card's timeout
  */
 export function buildQueryOptions(a) {
   if (!isAllowedMode(a.mode)) throw new Error(`refusing to start: permission mode "${a.mode}" is not allowed`);
@@ -55,7 +57,7 @@ export function buildQueryOptions(a) {
     model: a.model || DEFAULT_MODEL, // always written out, so Claude Code's own default (Opus) never applies
     permissionMode: claudeCodeMode(a.mode), // Dev mode is Ask me first to Claude Code; the app goes ahead in the folder
     canUseTool: a.canUseTool,
-    hooks: { PreToolUse: [{ hooks: [a.preToolUseHook], onFailure: 'block' }] },
+    hooks: { PreToolUse: [{ hooks: [a.preToolUseHook], onFailure: 'block', ...(a.hookTimeoutSec > 0 ? { timeout: a.hookTimeoutSec } : {}) }] },
     disallowedTools: denyRules({ project: a.project, hubPaths: a.hubPaths || [] }),
     settingSources: ['user', 'project', 'local'], // same ~/.claude, CLAUDE.md and skills as the Terminal
     includePartialMessages: true,

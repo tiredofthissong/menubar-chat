@@ -9,7 +9,7 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Part | State |
 |---|---|
 | Engine: one Claude Code session per project, through the official Claude Agent SDK, in a background helper the window talks to over Electron's own messaging (no network port) | Real, tested |
-| Three modes, picked from the menu next to the project: **Ask me first** (default), **Plan first**, and **Dev mode**, where Claude goes ahead on steps inside the project folder and still asks for anything outside it, deletes, the internet and system tools | Real, tested |
+| Three modes, picked from the menu next to the project: **Ask me first** (default), **Plan first**, and **Dev mode**, where Claude goes ahead on steps inside the project folder and still asks for anything outside it, deletes, the internet and system tools. A web lookup card in Dev mode also offers **Allow for an hour** (web lookups only, this project only, ends when you quit, switch mode or start a new chat) | Real, tested |
 | Copy: a copy button on every card and every reply, and card text you can select | Real, tested |
 | Change cards: every file change shows one plain sentence, Claude's reason, the change itself one click away, and an **Undo** button | Real, tested |
 | One chat box, no Terminal: pasted Terminal lines become one command Claude runs after you allow it; `claude ...`, `!cmd` and mistyped /commands get a one-line fix | Real, tested |
@@ -78,13 +78,14 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 - **Checked twice.** Every command from the window is checked by the app and again by the helper. Anything unexpected is refused, never guessed at.
 - **Undo never writes over newer work.** If a file changed after Claude's edit, Undo says so and leaves it alone. Files outside the project folder get no Undo.
 - **Only three modes.** "Accept edits", "auto" and "bypass" are left out on purpose: they let changes through without a card, deletes included. **Dev mode** is the app's own: Claude Code still asks for everything, and the app goes ahead only on steps that stay in the project folder. A script Claude runs there can still do what any program can, so Dev mode trusts the code in that folder.
+- **A look outside the folder always asks, in every mode.** Claude Code runs its own read-only commands (ls, cat, find) without asking anyone, wherever they point, so the app's hook puts a card up itself when one reaches outside the project folder.
 
 ## Layout
 
 ```
 app/       the menu bar shell, the window, and the link to the background helper
 engine/    the background helper: sessions, the one SDK reader (translate), one exit (publish)
-policy/    the hard rules, the hook, approvals, the three modes and Dev mode's folder check
+policy/    the hard rules, the hook, approvals, the three modes, Dev mode's folder check and the web pass
 changes/   change cards and Undo
 usage/     the daily cap and this chat's cost and context meter
 status/    the hover line

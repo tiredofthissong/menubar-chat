@@ -2,23 +2,23 @@
 // query, input queue, approval broker, change copies and meter. Talks out only through emit(event).
 // Failure rule: anything unexpected ends the turn and DENIES whatever is waiting.
 import { event } from '../shared/contract.mjs';
-import { explainToolCall } from '../shared/explain.mjs';
 import { classifyInput } from '../shared/input.mjs';
-import { ApprovalBroker } from '../policy/approvals.mjs';
+import { ApprovalBroker, DEFAULT_TIMEOUT_MS } from '../policy/approvals.mjs';
 import { makePreToolUseHook } from '../policy/hook.mjs';
-import { checkToolCall } from '../policy/rules.mjs';
-import { questionCard, MALFORMED } from '../policy/questions.mjs';
 import { START_MODE, requestMode, MODES, claudeCodeMode } from '../policy/modes.mjs';
-import { devModeAllows } from '../policy/devmode.mjs';
+import { createPermit } from './permit.mjs';
 import { ChangeStore } from '../changes/changes.mjs';
 import { createMeter } from '../usage/meter.mjs';
 import { buildQueryOptions } from './options.mjs';
 import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
-import { translate, newScratch, whyFor } from './translate.mjs';
+import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
 import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
+
+// The hook may wait for your answer (an outside look), so it gets as long as a card does, plus a margin.
+const hookTimeoutSec = (ms = DEFAULT_TIMEOUT_MS) => (ms > 0 ? Math.ceil(ms / 1000) + 30 : 24 * 3600);
 
 export class ProjectSession {
   /** d: { project {name,path,tag}, sdk {query}, emit (every event carries {project}), status, budget,
@@ -32,8 +32,9 @@ export class ProjectSession {
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
     this.approvals = 0; this.next = []; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
+    this.permit = createPermit(this, { now: settings.now });
     this.broker = new ApprovalBroker({
-      timeoutMs: settings.approvalTimeoutMs,
+      timeoutMs: settings.approvalTimeoutMs, onHour: () => this.permit.onHour(),
       onOpen: (card) => { this.approvals++; this.cards(); this.emit(event('approval', { card })); },
       onClose: (id, decision, why, toolUseID) => {
         if (decision === 'deny' && toolUseID) { this.explained.add(toolUseID); this.changes.forget(toolUseID); }
@@ -47,20 +48,8 @@ export class ProjectSession {
   cards() { this.status.setPendingCards(this.project.name, this.broker.size); this.emit(event('status')); }
   setStatus(state, detail) { this.status.set(this.project.name, state, detail); this.emit(event('status')); }
 
-  /** canUseTool: the hard rules again (second line), then Dev mode's own folder check, then the person. */
-  canUseTool = async (toolName, input, opts) => {
-    const verdict = checkToolCall({ project: this.project, hubPaths: this.settings.hubPaths }, toolName, input);
-    if (verdict.decision === 'deny') return { behavior: 'deny', message: verdict.plain, toolUseID: opts?.toolUseID };
-    const asks = toolName === 'AskUserQuestion' ? questionCard(input) : null; // a question gets a card you tap
-    if (toolName === 'AskUserQuestion' && !asks) return { behavior: 'deny', message: MALFORMED, toolUseID: opts?.toolUseID };
-    const card = asks || explainToolCall(toolName, input, this.project.path);
-    if (!asks && this.mode === 'dev' && devModeAllows(toolName, input, this.project.path, card)) return { behavior: 'allow', updatedInput: input, toolUseID: opts?.toolUseID };
-    if (!asks) card.reason = (await whyFor(this.scratch, opts?.toolUseID)) || card.reason; // Claude's own "Why:" line first
-    const answer = await this.broker.ask(toolName, input, opts, asks || { ...card, learn: this.learn.pick(toolName, input, card.danger) });
-    // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
-    if (toolName === 'ExitPlanMode' && answer.behavior === 'allow' && this.mode === 'plan') this.noteMode('default');
-    return answer;
-  };
+  /** Claude Code's "may I?" and the hook's "ask first" both live in engine/permit.mjs. */
+  canUseTool = (toolName, input, opts) => this.permit.canUseTool(toolName, input, opts);
 
   noteMode(mode) { this.mode = mode; this.emit(event('mode', { mode, label: MODES[mode] })); }
 
@@ -75,10 +64,10 @@ export class ProjectSession {
     const hubPaths = this.settings.hubPaths;
     const options = buildQueryOptions({
       project: this.project, mode: this.mode, hubPaths, canUseTool: this.canUseTool,
-      preToolUseHook: makePreToolUseHook({ project: this.project, hubPaths, changes: this.changes,
+      preToolUseHook: makePreToolUseHook({ project: this.project, hubPaths, changes: this.changes, askFirst: this.permit.askFirst,
         onBlocked: (rule, plain, id) => { if (id) this.explained.add(id); this.emit(event('blocked', { rule, plain })); } }),
       keychainService: this.settings.keychainService ?? null, resumeId: this.sessionId,
-      budgetUsd: this.budget.left, spawn: this.settings.spawn, model: this.settings.model,
+      budgetUsd: this.budget.left, spawn: this.settings.spawn, model: this.settings.model, hookTimeoutSec: hookTimeoutSec(this.settings.approvalTimeoutMs),
     });
     const q = this.sdk.query({ prompt: this.input, options });
     this.q = q;
@@ -172,6 +161,7 @@ export class ProjectSession {
     if (r.mode !== was && this.q) {
       try { if (claudeCodeMode(r.mode) !== claudeCodeMode(was)) await this.q.setPermissionMode(claudeCodeMode(r.mode)); } catch { this.mode = was; return { ok: false, text: "Claude didn't take the new mode, so it stays as it was." }; }
     }
+    if (r.mode !== was) this.permit.pass.end(); // the web pass ends when you switch mode
     this.noteMode(r.mode);
     return r;
   }
@@ -183,7 +173,7 @@ export class ProjectSession {
   }
 
   /** Pick up a past chat (or start fresh with null). Anything waiting is denied first. */
-  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(); this.learn = createLearnPicker(); }
+  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(); this.learn = createLearnPicker(); this.permit.pass.end(); }
 
   async stop() {
     this.broker.denyAll('Stopped before you answered, so it was not run.');

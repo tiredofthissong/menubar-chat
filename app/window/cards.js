@@ -126,6 +126,8 @@ window.ChatCards = (() => {
     // Same class for every answer, and no autofocus: nothing is pre-selected.
     row.append(button('Deny', 'btn', () => act.answer('deny')));
     if (card.trash === true) row.append(button('Move to Trash instead', 'btn', () => act.answer('trash')));
+    // Web lookups in Dev mode: later lookups in this project go ahead for an hour, or until you quit.
+    if (card.hour === true) row.append(button('Allow for an hour', 'btn', () => act.answer('allow_hour')));
     row.append(button(danger ? 'Delete for good' : 'Allow once', 'btn', () => act.answer('allow')));
     c.append(row);
     return c;

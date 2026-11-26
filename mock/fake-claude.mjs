@@ -26,6 +26,9 @@ export const SCENARIOS = {
   leak: [{ chunks: ['Your key is sk-ant-ab', 'cdef1234567890 ok\n'] }],
   hello: [{ say: 'Hello from the fake Claude.\n' }],
   web: [{ say: 'Why: you asked which plants need shade.\n' }, { tool: 'WebFetch', input: { url: 'https://example.org/shade-plants', prompt: 'List shade plants' } }],
+  peek: [{ say: 'Why: you asked what sits next to this project.\n' }, { tool: 'Bash', input: { command: 'ls ..' }, readOnly: true }],
+  lookhere: [{ tool: 'Bash', input: { command: 'ls -la' }, readOnly: true }],
+  quoted: [{ tool: 'Bash', input: { command: 'echo "=== open questions ===" && cat notes.txt' } }],
   npm: [{ tool: 'Bash', input: { command: 'npm install', description: 'Install the garden app packages' } }],
   plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
   sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
@@ -134,16 +137,19 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
   const delta = (text) => write({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, parent_tool_use_id: null, ...base() });
 
   async function gate(name, input, toolUseId, step, signal) {
+    let hookAllowed = false;
     for (const callback_id of hookIds) {
       const hookInput = { hook_event_name: 'PreToolUse', session_id: sessionId, transcript_path: '', cwd, permission_mode: mode, tool_name: name, tool_input: input, tool_use_id: toolUseId };
       const r = await ask({ subtype: 'hook_callback', callback_id, input: hookInput, tool_use_id: toolUseId }, signal);
       if (r.subtype === 'error') { if (hookBlocks) return { ok: false, why: 'Blocked: a safety hook failed.' }; continue; }
       const out = r.response?.hookSpecificOutput;
       if (out?.permissionDecision === 'deny') return { ok: false, why: out.permissionDecisionReason || 'Denied by hook' };
+      if (out?.permissionDecision === 'allow') hookAllowed = true;
     }
     if (deniedByRule(denyRules, name, input)) return { ok: false, why: 'Denied by a permission rule' };
     if (mode === 'plan' && ['Edit', 'Write', 'Bash'].includes(name)) return { ok: false, why: 'Plan mode: nothing is changed' };
-    if (step.allowRule) return { ok: true };
+    if (hookAllowed) return name === 'Edit' ? applyEdit(cwd, input) : { ok: true }; // a hook's allow skips the card
+    if (step.allowRule || step.readOnly) return { ok: true }; // readOnly: Claude Code's own read-only commands
     const r = await ask({ subtype: 'can_use_tool', tool_name: name, input, tool_use_id: toolUseId }, signal);
     const answer = r.subtype === 'success' ? r.response : { behavior: 'deny', message: r.error };
     if (answer?.behavior !== 'allow') return { ok: false, why: answer?.message || 'Denied' };
