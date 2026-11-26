@@ -9,7 +9,8 @@
 //   - "trash" (delete cards only) is a "no" too: the rm never runs; Claude is told to move
 //     the same files to the Trash instead, which asks you again on a new card
 //   - "allow_hour" counts only on a card that offers it (web lookups in Dev mode): it is an
-//     allow once, plus onHour() so later web lookups in this project go ahead for an hour
+//     allow once, plus onHour() so later web lookups in this project go ahead for an hour,
+//     and the other web lookup cards already waiting are allowed with it
 //   - a question card (policy/questions.mjs) takes a tapped or typed answer, which goes back
 //     inside the tool's input; a skip or anything that doesn't fit is a "no"
 // Flow idea (pending map + race against the abort signal) from T3 Code (MIT), rewritten;
@@ -76,7 +77,12 @@ export class ApprovalBroker {
     // Strict equality on purpose. Do not "normalize" this (no toLowerCase, no trim).
     if (typeof decision === 'string' && decision === 'allow') settle('allow');
     else if (decision === 'trash' && this.danger.has(id)) settle('deny', TRASH_INSTEAD);
-    else if (decision === 'allow_hour' && this.hour.has(id)) settle('allow', this.onHour());
+    else if (decision === 'allow_hour' && this.hour.has(id)) {
+      // Claude often runs several web lookups at once, so their cards are already up: the hour covers them too.
+      const others = [...this.hour].filter((o) => o !== id).map((o) => this.pending.get(o)?.settle);
+      settle('allow', this.onHour());
+      for (const s of others) s?.('allow', 'Allowed for the hour with the card above.');
+    }
     else settle('deny', 'You said no, so it was not run.');
     return true;
   }

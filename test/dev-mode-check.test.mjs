@@ -62,6 +62,16 @@ test('the web pass: an hour, Dev mode only, web lookups only, and only on a card
   return plain.then((r) => { assert.equal(r.behavior, 'deny', 'allow_hour on a card without the button is a no'); assert.equal(hours, 0); });
 });
 
+test('Allow for an hour also allows the web lookups already waiting, and nothing else (Bromo, Nov 26)', async () => {
+  let hours = 0; const b = new ApprovalBroker({ onOpen: () => {}, onClose: () => {}, onHour: () => { hours++; return 'ok'; }, timeoutMs: 0 });
+  const [one, two, three] = [1, 2, 3].map(() => b.ask('WebSearch', {}, {}, { hour: true }));
+  const install = b.ask('Bash', {}, {}, {});
+  b.answer([...b.pending.keys()][1], 'allow_hour');
+  for (const r of await Promise.all([one, two, three])) assert.equal(r.behavior, 'allow');
+  assert.equal(hours, 1, 'one pass, not three'); assert.equal(b.size, 1, 'the install card still waits');
+  b.answer([...b.pending.keys()][0], 'deny'); assert.equal((await install).behavior, 'deny');
+});
+
 test('the hook waits as long as a card does', () => {
   const o = buildQueryOptions({ mode: 'default', project: { path: root, name: 'p' }, canUseTool: () => {}, preToolUseHook: () => {}, keychainService: KEYCHAIN_SERVICE, hookTimeoutSec: 930 });
   assert.equal(o.hooks.PreToolUse[0].timeout, 930); assert.equal(o.hooks.PreToolUse[0].onFailure, 'block');
