@@ -1,12 +1,15 @@
 // projects.mjs - the list of project folders, each tagged Work or Personal (untagged counts as Work).
 // Two files are read: the app's own list (projects you added in the window) and the scratch list
 // that `npm run scratch` makes. The app's own list wins for a folder that's in both. Only the app's
-// own list is ever written. Pure apart from the small fs object passed in, so tests need no Mac.
+// own list is ever written. A project copied from GitHub keeps its owner/repo, so when its folder is
+// put away (in the Trash) it stays in the list, marked away, and can be copied back. Pure apart from the small fs object passed in, so tests need no Mac.
 import path from 'node:path';
 
 const NAME = /^[\w][\w .-]{0,63}$/; // the same rule the window-helper contract uses
 
-const clean = (p) => ({ name: p.name, path: p.path, tag: p.tag === 'personal' ? 'personal' : 'work' });
+const REPO = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/; // owner/repo, for a project copied from GitHub
+
+const clean = (p) => ({ name: p.name, path: p.path, tag: p.tag === 'personal' ? 'personal' : 'work', ...(REPO.test(p.repo ?? '') ? { repo: p.repo } : {}) });
 
 /** @param {{ read: (file: string) => string, exists: (p: string) => boolean }} fs */
 export function loadProjects(files, fs) {
@@ -15,9 +18,11 @@ export function loadProjects(files, fs) {
     let list = [];
     try { list = JSON.parse(fs.read(file)); } catch { continue; }
     for (const p of Array.isArray(list) ? list : []) {
-      if (typeof p?.name !== 'string' || !NAME.test(p.name) || typeof p.path !== 'string' || !fs.exists(p.path)) continue;
+      if (typeof p?.name !== 'string' || !NAME.test(p.name) || typeof p.path !== 'string') continue;
+      const away = !fs.exists(p.path);
+      if (away && !REPO.test(p.repo ?? '')) continue;
       if (seen.has(p.path) || out.some((o) => o.name === p.name)) continue;
-      seen.add(p.path); out.push(clean(p));
+      seen.add(p.path); out.push(away ? { ...clean(p), away } : clean(p));
     }
   }
   return out;
@@ -46,10 +51,13 @@ export function refuseFolder(folder, { home, list }) {
 }
 
 /** The list with one folder added (tag picked by you; anything else counts as Work). */
-export function addProject(list, folder, tag) {
+export function addProject(list, folder, tag, repo) {
   const abs = path.resolve(folder);
-  return [...list, clean({ name: nameFor(abs, list), path: abs, tag })];
+  return [...list, clean({ name: nameFor(abs, list), path: abs, tag, repo })];
 }
 
 /** The list with one project's tag changed. */
-export const setTag = (list, name, tag) => list.map((p) => (p.name === name ? clean({ ...p, tag }) : p));
+export const setTag = (list, name, tag) => list.map((p) => (p.name === name ? { ...p, ...clean({ ...p, tag }) } : p));
+
+/** The list with one project marked away (its folder in the Trash) or back (at its new folder). */
+export const setAway = (list, name, away, folder) => list.map((p) => (p.name !== name ? p : away ? { ...clean(p), away: true } : clean({ ...p, path: folder ?? p.path })));

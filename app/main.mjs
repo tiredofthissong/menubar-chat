@@ -149,7 +149,7 @@ function wireIpc() {
 
 app.whenReady().then(() => {
   projects = createProjects({
-    ipcMain, dialog, window: () => mb?.window, fromOurWindow, home: app.getPath('home'),
+    ipcMain, dialog, window: () => mb?.window, fromOurWindow, home: app.getPath('home'), trash: (p) => shell.trashItem(p),
     userFile: path.join(app.getPath('userData'), 'projects.json'), scratchFile: path.join(SCRATCH, 'projects.json'),
     onChange: (list) => link.projects(list),
   });

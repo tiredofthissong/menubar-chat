@@ -108,6 +108,15 @@
     }
   }
 
+  /** Selects the first project whose folder is on this Mac; false when there is none. */
+  function pickFirst() {
+    const first = state.projects.find((x) => !x.away);
+    if (first) { selectProject(first.name); return true; }
+    state.current = null; $('project').textContent = 'Project'; $('send').disabled = true; $('input').disabled = true;
+    notice(state.projects.length ? 'Your projects are put away on GitHub. Click Project and pick one to copy it back.' : 'No projects yet. Click Project, then Add a folder.', true);
+    return false;
+  }
+
   function setProjects(list) {
     state.projects = list;
     const p = list.find((x) => x.name === state.current);
@@ -117,7 +126,7 @@
   async function start() {
     Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); }, copy: (t) => { api.copy(t); notice('Copied.'); } });
     Panel.init({
-      api, notice, select: selectProject, setProjects, projects: () => state.projects, current: () => state.current,
+      api, notice, select: selectProject, setProjects, pickFirst, busy: (n) => state.busy.has(n), projects: () => state.projects, current: () => state.current,
       usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, version: state.version, ...(state.chat.get(state.current) || {}) }),
     });
     api.onEvent(onEvent);
@@ -127,12 +136,7 @@
     showSpend(info.spentUsd ?? 0, info.capUsd ?? 5);
     state.warm = info.keychainOk === true;
     $('spend').title = 'Spending today. Click for this chat and how much memory it has used.';
-    if (!state.projects.length) {
-      notice('No projects yet. Click Project, then Add a folder.', true);
-      $('send').disabled = true; $('input').disabled = true;
-      return;
-    }
-    selectProject(state.projects[0].name);
+    if (!pickFirst()) return;
     if (!info.keychainOk) notice('No API key in the Keychain yet, so Claude can\'t answer. See the README, then quit and reopen.', true);
     else if (!info.hotkey) notice('The hotkey Control-Option-Command-C is taken by another app. The menu bar icon still works.');
   }

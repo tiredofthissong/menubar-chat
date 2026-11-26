@@ -64,7 +64,7 @@ test('window actions: the folder comes only from the Mac picker, and the push bl
   assert.equal((await h('projects:add', 'work')).ok, false, 'nothing to add before the picker');
   assert.deepEqual(await h('projects:pick'), { ok: true, folder: 'client-site' });
   const added = await h('projects:add', 'personal');
-  assert.equal(added.added, 'client-site'); assert.deepEqual(added.projects, [{ name: 'client-site', tag: 'personal', pushBlock: null }]);
+  assert.equal(added.added, 'client-site'); assert.deepEqual(added.projects, [{ name: 'client-site', tag: 'personal', repo: null, away: false, pushBlock: null }]);
   assert.equal((await h('projects:block', 'client-site')).ok, false, 'no push block on a personal project');
   const work = await h('projects:tag', 'client-site', 'work');
   assert.equal(work.projects[0].pushBlock, 'off');

@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('menubarChat', {
   pickFolder: () => ipcRenderer.invoke('projects:pick'),
   addFolder: (tag) => ipcRenderer.invoke('projects:add', tag),
   addGithub: (repo) => ipcRenderer.invoke('projects:github', String(repo).slice(0, 300)),
+  putAway: (project) => ipcRenderer.invoke('projects:putAway', project),
+  bringBack: (project) => ipcRenderer.invoke('projects:bringBack', project),
   setTag: (project, tag) => ipcRenderer.invoke('projects:tag', project, tag),
   blockPushes: (project) => ipcRenderer.invoke('projects:block', project),
   hide: () => ipcRenderer.send('hide'),

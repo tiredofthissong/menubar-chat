@@ -1,6 +1,7 @@
 // panel.js - the two drop-down panels under the top bar. Plain script.
 //   Projects: switch project, add a folder (Work or Personal) or a GitHub repo, start a new chat, pick up a past
-//             chat, change the tag, and add the push block to a work repo.
+//             chat, change the tag, add the push block to a work repo, and put a GitHub project away
+//             (its folder to the Trash, kept in the list) or copy it back by picking it.
 //   Usage:    today against the daily cap, this chat in dollars, how much of Claude's memory
 //             this chat has used, and the learning log by Claude Academy course.
 //   Wrap up:  adds one dated note about this chat to HANDOFF.md in the project folder.
@@ -29,8 +30,9 @@ window.ChatPanel = (() => {
   function projectList() {
     const s = section('Projects'); const list = el('div', 'project-list');
     for (const p of ctx.projects()) {
-      const b = button(p.name, 'project-item', () => { ctx.select(p.name); close(); });
-      b.append(el('span', 'pill', p.tag));
+      const b = button(p.name, 'project-item', () => { if (p.away) bringBack(p, b); else { ctx.select(p.name); close(); } });
+      b.append(el('span', p.away ? 'pill pill-quiet' : 'pill', p.away ? 'on GitHub' : p.tag));
+      if (p.away) b.title = `Copy ${p.name} back from GitHub`;
       if (p.name === ctx.current()) b.setAttribute('aria-current', 'true');
       list.append(b);
     }
@@ -61,6 +63,24 @@ window.ChatPanel = (() => {
       if (r?.ok) { ctx.setProjects(r.projects); ctx.select(r.added); render(); } else { go.disabled = false; go.textContent = 'Copy and add'; }
     });
     where.append(form); input.focus();
+  }
+  async function bringBack(p, b) {
+    b.disabled = true; ctx.notice(`Copying ${p.name} back from GitHub…`);
+    const r = say(await ctx.api.bringBack(p.name));
+    if (r?.ok) { ctx.setProjects(r.projects); ctx.select(p.name); render(); } else b.disabled = false;
+  }
+  /** Put away: the app checks nothing lives only on this Mac, then moves the folder to the Trash. */
+  function putAway(p) {
+    const s = section('On this Mac');
+    s.append(el('p', 'panel-note', `A copy of ${p.repo} from GitHub. Put it away to clear it off this Mac.`), button('Put away…', 'btn btn-small btn-quiet', () => {
+      if (ctx.busy(p.name)) { ctx.notice('Wait until Claude finishes in this project, then put it away.', true); return; }
+      confirm(s, 'Check that everything is on GitHub, then move this folder to the Trash? It stays in your list and copies back when you pick it.', 'Keep it here', 'Put away', async () => {
+        const r = await ctx.api.putAway(p.name);
+        if (r?.ok) { ctx.setProjects(r.projects); ctx.pickFirst(); render(); }
+        say(r);
+      });
+    }));
+    return s;
   }
   async function saveFolder(tag) {
     const r = say(await ctx.api.addFolder(tag));
@@ -146,7 +166,7 @@ window.ChatPanel = (() => {
   function render() {
     if (open === 'projects') {
       const p = ctx.projects().find((x) => x.name === ctx.current());
-      $('panel-projects').replaceChildren(projectList(), ...(p ? [chats(p.name), safety(p)] : []));
+      $('panel-projects').replaceChildren(projectList(), ...(p ? [chats(p.name), safety(p), ...(p.repo && p.tag === 'personal' ? [putAway(p)] : [])] : []));
     }
     if (open === 'usage') $('panel-usage').replaceChildren(usage(), learning());
   }

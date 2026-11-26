@@ -33,7 +33,7 @@ export function cloneError(text) {
   return "The copy from GitHub didn't work, so nothing was added.";
 }
 
-const run = (args, cwd) => new Promise((resolve) => {
+export const run = (args, cwd) => new Promise((resolve) => {
   execFile('git', args, { cwd, timeout: 180000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
     (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout).trim(), err: String(stderr || err?.message || '') }));
 });
