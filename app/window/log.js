@@ -45,6 +45,20 @@ window.ChatLog = (() => {
     add(project, el('div', 'msg msg-you', t));
   }
 
+  // A fresh start for this project's log: a new chat, or a past chat picked up from the panel.
+  function reset(project) {
+    endReply(project);
+    logFor(project).replaceChildren();
+    if (project === current) toBottom();
+  }
+  // A past chat's turns, drawn the same way as live ones (Claude's as Markdown).
+  function past(project, turns) {
+    for (const t of turns) {
+      if (t.who === 'you') add(project, el('div', 'msg msg-you', t.text));
+      else { const b = el('div', 'msg msg-claude md'); b.append(MD.render(t.text, document)); add(project, b); }
+    }
+  }
+
   // Claude's suggested next steps, one button each. A button sends that line as your message, so
   // anything it leads to still asks you first on a card.
   function next(project, items, pick) {
@@ -89,7 +103,8 @@ window.ChatLog = (() => {
       const logContent = (log.firstElementChild?.offsetHeight || 0) + 24; // content plus the log's own padding
       const cardsContent = cards.childElementCount ? cards.scrollHeight : 0;
       const noticeHeight = notice.hidden ? 0 : notice.offsetHeight + 12;
-      const wanted = Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + logContent + cardsContent + $('composer').offsetHeight);
+      const panels = [...document.querySelectorAll('.panel:not([hidden])')].reduce((h, p) => h + p.offsetHeight, 0);
+      const wanted = Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + panels + logContent + cardsContent + $('composer').offsetHeight);
       if (sizeChanged(wanted)) api.fit(wanted);
     });
   }
@@ -108,8 +123,9 @@ window.ChatLog = (() => {
     jump.addEventListener('click', toBottom);
     new ResizeObserver(fit).observe($('cards'));
     new ResizeObserver(fit).observe($('notice'));
+    for (const p of document.querySelectorAll('.panel')) new ResizeObserver(fit).observe(p);
     new MutationObserver(fit).observe(log, { childList: true, subtree: true, characterData: true });
   }
 
-  return { init, show, text, endReply, line, you, next, change, undone, fit };
+  return { init, show, text, endReply, line, you, next, change, undone, fit, reset, past };
 })();

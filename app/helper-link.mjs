@@ -38,6 +38,8 @@ export function createHelperLink({ fork, entry, boot, onEvent, onExit = () => {}
       if (!child) start();
       return new Promise((resolve) => { const id = ++seq; calls.set(id, resolve); child.postMessage({ kind: 'command', id, cmd }); });
     },
+    /** The project list changed: the helper picks it up without a restart. */
+    projects(list) { if (child) child.postMessage({ kind: 'projects', projects: list }); },
     stop() {
       const c = child; child = null;
       if (!c) return;

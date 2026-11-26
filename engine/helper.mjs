@@ -6,6 +6,8 @@
 // one hover line for the menu bar, sent only when it changes.
 import { validateCommand, event } from '../shared/contract.mjs';
 import { redactDeep } from '../shared/redact.mjs';
+import { pastTurns } from './translate.mjs';
+import { pullNext } from './next.mjs';
 import { StatusBoard } from '../status/status.mjs';
 import { listProjectSessions } from '../sidebar/sessions.mjs';
 import { ProjectSession } from './session.mjs';
@@ -19,7 +21,7 @@ const SKIP_REPLAY = new Set(['status']);
  */
 export function createHelper({ projects, sdk, budget, settings, log, send }) {
   const status = new StatusBoard();
-  const sessions = new Map(); const replay = new Map(); const byName = new Map(projects.map((p) => [p.name, p]));
+  const sessions = new Map(); const replay = new Map(); let byName = new Map(projects.map((p) => [p.name, p]));
   let last = '';
 
   const pendingCards = () => [...sessions.values()].reduce((n, s) => n + s.broker.size, 0);
@@ -55,8 +57,15 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
     setMode: async (s, c) => { const r = await s.setMode(c.mode); return r.ok ? { ok: true, mode: r.mode } : { ok: false, error: r.text }; },
     undo: (s, c) => { const r = s.undo(c.changeId); return { ok: r.ok, text: r.text }; },
     history: async (s) => (sdk.listSessions ? { ok: true, sessions: await listProjectSessions(s.project, sdk.listSessions) } : { ok: true, sessions: [] }),
-    resume: (s, c) => { s.resume(c.sessionId); publish(event('session', { project: s.project.name, sessionId: c.sessionId, mode: s.mode })); return { ok: true }; },
-    newChat: (s) => { s.resume(null); return { ok: true }; },
+    resume: async (s, c) => {
+      s.resume(c.sessionId);
+      const past = sdk.getSessionMessages ? await sdk.getSessionMessages(c.sessionId, { dir: s.project.path }).catch(() => []) : [];
+      const turns = pastTurns(past).map((t) => ({ ...t, text: pullNext(t.text, []).trim() })).filter((t) => t.text);
+      publish(event('past', { project: s.project.name, sessionId: c.sessionId, turns }));
+      publish(event('session', { project: s.project.name, sessionId: c.sessionId, mode: s.mode }));
+      return { ok: true };
+    },
+    newChat: (s) => { s.resume(null); publish(event('session', { project: s.project.name, sessionId: null, mode: s.mode })); return { ok: true }; },
     replay: (s) => ({ ok: true, events: replay.get(s.project.name) || [] }),
   };
 
@@ -77,6 +86,19 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
   return {
     handleCommand,
     pendingCards,
+    /**
+     * The app changed the project list (a folder added, a tag changed). A project whose folder or
+     * tag changed closes its session, so its next message runs under the new rules; anything
+     * waiting on a card there is denied.
+     */
+    setProjects(list) {
+      const next = new Map((Array.isArray(list) ? list : []).map((p) => [p.name, p]));
+      for (const [name, s] of sessions) {
+        const p = next.get(name);
+        if (!p || p.path !== s.project.path || p.tag !== s.project.tag) { s.close(); sessions.delete(name); }
+      }
+      byName = next;
+    },
     /** Quitting: every session closes and anything waiting is denied. */
     shutdown() { for (const s of sessions.values()) s.close(); },
   };

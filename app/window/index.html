@@ -12,17 +12,17 @@
   <div class="shell">
     <main class="chat" aria-label="Chat">
       <header class="bar">
-        <label class="field">
-          <span class="sr-only">Project</span>
-          <select id="project" aria-label="Project"></select>
-        </label>
+        <button type="button" id="project" class="project-btn" aria-expanded="false" aria-controls="panel-projects" title="Switch project, pick up a past chat, work or personal">Project</button>
         <span id="tag" class="pill">work</span>
         <button type="button" id="mode" class="pill pill-quiet mode-toggle" aria-pressed="false" title="Every change asks you first">Ask me first</button>
         <span class="spacer"></span>
-        <span id="spend" class="meter num" aria-live="polite">$0.00 of $5 today</span>
+        <button type="button" id="spend" class="meter meter-btn num" aria-expanded="false" aria-controls="panel-usage" aria-live="polite">$0.00 of $5 today</button>
       </header>
 
       <div id="notice" class="notice" role="status" hidden></div>
+
+      <section id="panel-projects" class="panel" aria-label="Projects and chats" hidden></section>
+      <section id="panel-usage" class="panel" aria-label="Usage" hidden></section>
 
       <section id="log" class="log" tabindex="0" aria-live="polite" aria-label="Conversation"></section>
 
@@ -45,6 +45,7 @@
   <script src="markdown.js" defer></script>
   <script src="log.js" defer></script>
   <script src="cards.js" defer></script>
+  <script src="panel.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

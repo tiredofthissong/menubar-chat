@@ -6,6 +6,7 @@
 // Messages (plain objects, structured-cloned by Electron):
 //   app -> helper: { kind: 'boot', projects, settings, capUsd, spendFile }   once, first
 //                  { kind: 'command', id, cmd }                               cmd is checked in contract.mjs
+//                  { kind: 'projects', projects }                           the list changed
 //                  { kind: 'shutdown' }
 //   helper -> app: { kind: 'ready', spentUsd } | { kind: 'event', ev } | { kind: 'reply', id, result }
 import fs from 'node:fs';
@@ -46,6 +47,7 @@ export function serveHelper(port, { sdk, spawn = null, log = createLogger(), exi
       post({ kind: 'reply', id: msg.id, result });
       return;
     }
+    if (msg.kind === 'projects') { helper?.setProjects(msg.projects); return; }
     if (msg.kind === 'shutdown') { helper?.shutdown(); exit(); }
   });
   return { get helper() { return helper; } };

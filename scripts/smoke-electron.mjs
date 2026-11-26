@@ -6,7 +6,7 @@ import '../app/main.mjs';
 app.whenReady().then(() => setTimeout(async () => {
   const w = BrowserWindow.getAllWindows()[0];
   const seen = await w.webContents.executeJavaScript(`({
-    projects: [...document.querySelectorAll('#project option')].map((o) => o.textContent),
+    project: document.getElementById('project').textContent,
     tag: document.getElementById('tag').textContent,
     chatBoxes: document.querySelectorAll('textarea').length,
     sidePanels: document.querySelectorAll('aside').length,
@@ -17,7 +17,7 @@ app.whenReady().then(() => setTimeout(async () => {
   console.log('SMOKE ' + JSON.stringify(seen));
   // The background helper: a command from the window goes through the app to the helper and back.
   const roundTrip = await w.webContents.executeJavaScript(`(async () => {
-    const p = document.getElementById('project').value;
+    const p = document.getElementById('project').textContent;
     return { undo: await window.menubarChat.undo(p, 'no-such-change'), mode: await window.menubarChat.setMode(p, 'bypassPermissions') };
   })()`);
   console.log('SMOKE-HELPER ' + JSON.stringify(roundTrip));
@@ -52,11 +52,11 @@ app.whenReady().then(() => setTimeout(async () => {
   await new Promise((r) => setTimeout(r, 300));
   const up = await look();
   // app.js's add() is private, so drive it the way the app does: through a Claude reply event.
-  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').value`)), text: ' more' });
+  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').textContent`)), text: ' more' });
   await new Promise((r) => setTimeout(r, 300));
   const afterNew = await look();
   await w.webContents.executeJavaScript(`document.querySelector('.jump').click()`);
-  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').value`)), text: ' and more lines\n'.repeat(8) });
+  w.webContents.send('event', { type: 'text', project: (await w.webContents.executeJavaScript(`document.getElementById('project').textContent`)), text: ' and more lines\n'.repeat(8) });
   await new Promise((r) => setTimeout(r, 300));
   const follow = await look();
   let resizes = 0; const count = () => { resizes += 1; }; w.on('resize', count);
@@ -65,7 +65,7 @@ app.whenReady().then(() => setTimeout(async () => {
   console.log('SMOKE-SCROLL ' + JSON.stringify({ startAtBottom: start.max - start.top <= 40, scrolledUpBy: start.top - up.top,
     stayedUp: Math.abs(afterNew.top - up.top) <= 2, jumpShown: afterNew.jump, followsAtBottom: follow.max - follow.top <= 40 && !follow.jump, idleResizes: resizes }));
   // Milestone 2: a delete card, a change card and a typo hint, the way the helper sends them.
-  const project = await w.webContents.executeJavaScript(`document.getElementById('project').value`);
+  const project = await w.webContents.executeJavaScript(`document.getElementById('project').textContent`);
   const say = (ev) => w.webContents.send('event', { project, ...ev });
   say({ type: 'hint', kind: 'slash-typo', suggestion: 'design-rules', text: "There's no /desgin-rules in this project. Did you mean /design-rules?" });
   say({ type: 'change', id: 'toolu_smoke', file: 'notes.txt', sentence: 'Changed 1 line in notes.txt. Why: notes.txt has a typo.', canUndo: true,
@@ -100,6 +100,29 @@ app.whenReady().then(() => setTimeout(async () => {
     .filter((n) => !n.disabled && n.offsetParent !== null && !n.closest('details:not([open]) > :not(summary)')).map((a) => (a.id ? '#' + a.id : a.tagName.toLowerCase()) + (a.tagName === 'BUTTON' || a.tagName === 'SUMMARY' ? ':' + a.textContent.trim().slice(0, 22) : ''))`);
   const tabbed = [...new Set(walk.filter(Boolean).map((x) => x.name))];
   console.log('SMOKE-TAB ' + JSON.stringify({ controls: reach.length, reached: tabbed.length, missed: reach.filter((n) => !tabbed.includes(n)), allRinged: walk.filter(Boolean).every((x) => x.ring), order: tabbed }));
+  // Milestone 4: the Projects panel (projects with tags, past chats, the safety section) and the Usage panel.
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  await w.webContents.executeJavaScript(`document.getElementById('project').click()`); await wait(500);
+  const panel = await w.webContents.executeJavaScript(`({ open: !document.getElementById('panel-projects').hidden,
+    expanded: document.getElementById('project').getAttribute('aria-expanded'),
+    projects: [...document.querySelectorAll('.project-item')].map((b) => b.textContent), current: document.querySelector('.project-item[aria-current]')?.textContent,
+    chats: document.querySelector('.chat-list')?.textContent, safety: [...document.querySelectorAll('#panel-projects .panel-section:last-child p')].map((p) => p.textContent),
+    buttons: [...document.querySelectorAll('#panel-projects button')].map((b) => b.textContent.slice(0, 24)) })`);
+  if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-panel.png'), (await w.webContents.capturePage()).toPNG()); }
+  await w.webContents.executeJavaScript(`[...document.querySelectorAll('.project-item')].find((b) => b.textContent.startsWith('work-demo'))?.click()`); await wait(200);
+  await w.webContents.executeJavaScript(`document.getElementById('project').click()`); await wait(500);
+  panel.work = await w.webContents.executeJavaScript(`({ tag: document.getElementById('tag').textContent,
+    safety: [...document.querySelectorAll('#panel-projects .panel-section:last-child p')].map((p) => p.textContent),
+    buttons: [...document.querySelectorAll('#panel-projects .panel-section:last-child button')].map((b) => b.textContent) })`);
+  const fits = await w.webContents.executeJavaScript(`Math.round(document.getElementById('composer').getBoundingClientRect().bottom) <= window.innerHeight`);
+  panel.composerInView = fits;
+  w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' }); await wait(200);
+  const escClosed = await w.webContents.executeJavaScript(`document.getElementById('panel-projects').hidden && document.activeElement?.id === 'project'`);
+  await w.webContents.executeJavaScript(`document.getElementById('spend').click()`); await wait(300);
+  const usage = await w.webContents.executeJavaScript(`[...document.querySelectorAll('#panel-usage p')].map((p) => p.textContent)`);
+  if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-usage.png'), (await w.webContents.capturePage()).toPNG()); }
+  await w.webContents.executeJavaScript(`document.getElementById('spend').click()`); await wait(200);
+  console.log('SMOKE-PANEL ' + JSON.stringify({ ...panel, escClosed, usage, bars: await w.webContents.executeJavaScript(`document.querySelectorAll('progress').length`) }));
   if (process.env.SMOKE_SHOT) {
     const fs = await import('node:fs');
     w.show(); await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.querySelector('.log').scrollTop = 1e9`);

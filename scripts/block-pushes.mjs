@@ -22,6 +22,14 @@ export function hookPath(repo) {
   return path.resolve(repo, rel);
 }
 
+/** 'on' (our block is there), 'off', 'other' (a hook that isn't ours) or 'not-git'. */
+export function pushBlockState(repo) {
+  let hp;
+  try { hp = hookPath(repo); } catch { return 'not-git'; }
+  if (!fs.existsSync(hp)) return 'off';
+  return fs.readFileSync(hp, 'utf8').includes(MARKER) ? 'on' : 'other';
+}
+
 /** @returns {{ ok: boolean, text: string }} */
 export function blockPushes(repoArg, { remove = false } = {}) {
   const repo = path.resolve(repoArg || '');

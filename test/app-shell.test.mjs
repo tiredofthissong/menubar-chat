@@ -64,7 +64,7 @@ test('one chat box and no shell box; the proving checklist is gone', () => {
   assert.equal((html.match(/<input\b/g) || []).length, 0);
   assert.doesNotMatch(html, /proving|checks/);
   const order = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['dom.js', 'scroll.js', 'markdown.js', 'log.js', 'cards.js', 'app.js'], 'helpers load before the scripts that use them');
+  assert.deepEqual(order, ['dom.js', 'scroll.js', 'markdown.js', 'log.js', 'cards.js', 'panel.js', 'app.js'], 'helpers load before the scripts that use them');
 });
 
 test('styles follow the design rules', () => {

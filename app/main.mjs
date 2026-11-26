@@ -3,9 +3,8 @@
 // through Electron's built-in messaging (app/helper-link.mjs): no network port, no socket.
 // Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden,
 // and only shown or hidden, so it opens fast.
-import { app, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
+import { app, dialog, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
 import menubarPkg from 'menubar';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
@@ -16,6 +15,7 @@ import { createHelperLink } from './helper-link.mjs';
 import { Animator } from './animator.mjs';
 import { TuckTimer } from './tuck.mjs';
 import { approvalNotice } from './notify.mjs';
+import { createProjects } from './project-ipc.mjs';
 
 const { menubar } = menubarPkg;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +28,7 @@ const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-let projects = []; let spentUsd = 0; let pendingCards = 0; let busy = 0;
+let projects = null; let spentUsd = 0; let pendingCards = 0; let busy = 0;
 let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false;
 let activity = { hovered: false, typing: false };
 const notices = new Map(); // card id -> its notification, closed once the card is answered
@@ -36,14 +36,6 @@ const tuck = new TuckTimer({
   hide: () => mb?.hideWindow(),
   state: () => ({ visible: !!mb?.window?.isVisible(), ...activity, pendingCards, busy }),
 });
-
-function loadProjects() {
-  try {
-    const list = JSON.parse(fs.readFileSync(path.join(SCRATCH, 'projects.json'), 'utf8'));
-    return list.filter((p) => typeof p.name === 'string' && typeof p.path === 'string' && fs.existsSync(p.path))
-      .map((p) => ({ name: p.name, path: p.path, tag: p.tag === 'personal' ? 'personal' : 'work' })); // untagged counts as work
-  } catch { return []; }
-}
 
 const keychainHasKey = () => new Promise((resolve) => {
   // Asks only whether the item exists; without -w the secret itself is never printed.
@@ -59,14 +51,14 @@ const link = createHelperLink({
   fork: (entry) => utilityProcess.fork(entry, [], { serviceName: 'Menu bar chat helper', env: helperEnv() }),
   entry: path.join(ROOT, 'engine', 'helper-process.mjs'),
   boot: () => ({
-    projects, capUsd: CAP_USD, spendFile: path.join(app.getPath('userData'), 'spend-today.json'),
+    projects: projects.list, capUsd: CAP_USD, spendFile: path.join(app.getPath('userData'), 'spend-today.json'),
     settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'], model: DEFAULT_MODEL },
   }),
   onReady: (m) => { spentUsd = m.spentUsd ?? spentUsd; },
   onEvent,
   onExit: () => {
     pendingCards = 0; busy = 0; animator?.setState('error'); mb?.tray.setToolTip('Needs a look: the background helper stopped');
-    for (const p of projects) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Send your message again to restart it.' });
+    for (const p of projects.list) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Send your message again to restart it.' });
   },
 });
 
@@ -114,7 +106,7 @@ function wireIpc() {
     if (!fromOurWindow(e)) return null;
     await Promise.race([link.start(), new Promise((r) => setTimeout(r, 3000))]); // today's spend comes from the helper
     return {
-      projects: projects.map(({ name, tag }) => ({ name, tag })),
+      projects: projects.view(),
       scratch: SCRATCH, keychainOk: await keychainHasKey(), hotkey: hotkeyOk ? 'Control+Option+Command+C' : null,
       capUsd: CAP_USD, spentUsd, model: 'Sonnet', reducedMotion: Animator.reducedMotion(systemPreferences),
       versions: { app: app.getVersion(), electron: process.versions.electron, os: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim() },
@@ -144,7 +136,11 @@ function wireIpc() {
 }
 
 app.whenReady().then(() => {
-  projects = loadProjects();
+  projects = createProjects({
+    ipcMain, dialog, window: () => mb?.window, fromOurWindow, home: app.getPath('home'),
+    userFile: path.join(app.getPath('userData'), 'projects.json'), scratchFile: path.join(SCRATCH, 'projects.json'),
+    onChange: (list) => link.projects(list),
+  });
   // Before the window exists: menubar loads the page while it starts, and the page asks
   // for 'init' straight away.
   wireIpc();

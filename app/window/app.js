@@ -3,10 +3,10 @@
 'use strict';
 (() => {
   const api = window.menubarChat;
-  const { $, el, button } = window.ChatDom;
-  const Log = window.ChatLog; const Cards = window.ChatCards;
+  const { $, button } = window.ChatDom;
+  const Log = window.ChatLog; const Cards = window.ChatCards; const Panel = window.ChatPanel;
 
-  const state = { projects: [], current: null, busy: new Set(), modes: new Map(), cards: new Map() };
+  const state = { projects: [], current: null, busy: new Set(), modes: new Map(), cards: new Map(), chat: new Map(), spent: 0, cap: 5, model: 'Sonnet' };
   const MODE = {
     default: ['Ask me first', 'Every change asks you first. Click for Plan first: Claude only reads and plans until you approve the plan.'],
     plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan. Click to go back to Ask me first.'],
@@ -25,6 +25,7 @@
   function showSpend(spent, cap) {
     $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
     $('spend').classList.toggle('near', spent >= cap * 0.8);
+    state.spent = spent; state.cap = cap; Panel.refresh();
   }
   function setBusy(project, busy) {
     if (busy) state.busy.add(project); else state.busy.delete(project);
@@ -32,7 +33,8 @@
   }
 
   function selectProject(name) {
-    state.current = name; $('project').value = name;
+    state.current = name; $('project').textContent = name;
+    $('send').disabled = false; $('input').disabled = false;
     const p = state.projects.find((x) => x.name === name);
     $('tag').textContent = p?.tag === 'personal' ? 'personal' : 'work';
     $('stop').disabled = !state.busy.has(name);
@@ -88,14 +90,13 @@
       case 'tool_failed': Log.line(p, ev.text); break;
       case 'hint': hint(p, ev); break;
       case 'suggestions': Log.next(p, (ev.items || []).slice(0, 3), (item) => sendText(p, item)); break;
-      case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.line(p, 'New chat started.'); } break;
+      case 'past': Log.reset(p); Log.past(p, ev.turns || []); Log.line(p, 'Picked up this chat. Anything you send carries on from here.'); state.chat.delete(p); break;
+      case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.reset(p); Log.line(p, 'New chat started.'); state.chat.delete(p); } break;
       case 'change': Log.change(p, ev, (id) => api.undo(p, id).then(said)); break;
       case 'undo_result': if (ev.ok) Log.undone(ev.id); Log.line(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
       case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); Log.line(p, `Mode: ${ev.label}.`); break;
       case 'why': if (!ev.seen) Log.line(p, 'No "Why:" line came before this change.'); break;
-      case 'usage':
-        $('spend').title = `Model: Sonnet. This chat: $${(ev.chatUsd ?? 0).toFixed(2)}${ev.contextPct == null ? '' : `, ${ev.contextPct}% of its memory used`}. Spending stops at the daily cap and starts over at midnight.`;
-        break;
+      case 'usage': state.chat.set(p, { chatUsd: ev.chatUsd, contextPct: ev.contextPct }); Panel.refresh(); break;
       case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd); break;
       case 'error': setBusy(p, false); notice(`${p}: ${ev.text}`, true); Log.line(p, ev.text, 'line-blocked'); break;
       case 'opened': $('input').focus(); Log.fit(); break;
@@ -103,16 +104,26 @@
     }
   }
 
+  function setProjects(list) {
+    state.projects = list;
+    const p = list.find((x) => x.name === state.current);
+    if (p) $('tag').textContent = p.tag;
+  }
+
   async function start() {
     Log.init(api);
+    Panel.init({
+      api, notice, select: selectProject, setProjects, projects: () => state.projects, current: () => state.current,
+      usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, ...(state.chat.get(state.current) || {}) }),
+    });
     api.onEvent(onEvent);
     const info = (await api.init()) || {};
     state.projects = info.projects || [];
-    for (const p of state.projects) $('project').append(el('option', '', p.name));
+    state.model = info.model || 'Sonnet';
     showSpend(info.spentUsd ?? 0, info.capUsd ?? 5);
-    $('spend').title = `Model: ${info.model || 'Sonnet'}. Spending stops at the daily cap and starts over at midnight.`;
+    $('spend').title = 'Spending today. Click for this chat and how much memory it has used.';
     if (!state.projects.length) {
-      notice('No projects yet. In Terminal, run "npm run scratch", then quit and reopen the app.', true);
+      notice('No projects yet. Click Project, then Add a folder.', true);
       $('send').disabled = true; $('input').disabled = true;
       return;
     }
@@ -121,7 +132,6 @@
     else if (!info.hotkey) notice('The hotkey Control-Option-Command-C is taken by another app. The menu bar icon still works.');
   }
 
-  $('project').addEventListener('change', (e) => selectProject(e.target.value));
   $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
   $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
   $('input').addEventListener('input', activity);
@@ -133,9 +143,10 @@
   });
   document.addEventListener('mouseenter', () => { hovered = true; activity(); });
   document.addEventListener('mouseleave', () => { hovered = false; activity(); });
-  // Esc tucks the window away, unless it's closing an open "Show the exact command" first.
+  // Esc closes an open panel or "Show the exact command" first; otherwise it tucks the window away.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (Panel.close()) return; // an open panel closes first
     const open = document.activeElement?.closest?.('details[open]');
     if (open) { open.open = false; open.querySelector('summary')?.focus(); return; }
     api.hide();

@@ -86,3 +86,20 @@ export function translate(m, st) {
   }
   return { events, facts };
 }
+
+/**
+ * A past chat's messages (SDK getSessionMessages) as plain turns for the window: what you typed
+ * and what Claude wrote, text only. Tool results, sub-agents and system notes are left out.
+ * @returns {Array<{ who: 'you' | 'claude', text: string }>}
+ */
+export function pastTurns(messages, limit = 40) {
+  const out = [];
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (!m || m.parent_tool_use_id || (m.type !== 'user' && m.type !== 'assistant')) continue;
+    const c = m.message?.content;
+    const text = (typeof c === 'string' ? c : Array.isArray(c) ? c.filter((b) => b?.type === 'text').map((b) => b.text).join('\n') : '').trim();
+    if (!text || (m.type === 'user' && /^<(command|local-command|system)/.test(text))) continue;
+    out.push({ who: m.type === 'user' ? 'you' : 'claude', text: text.slice(0, 8000) });
+  }
+  return out.slice(-limit);
+}

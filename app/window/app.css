@@ -18,11 +18,42 @@ p { margin: 0; }
 .bar, .notice, .composer { flex-shrink: 0; }
 .bar { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
 .spacer { flex: 1; }
-select {
-  font: inherit; color: var(--color-fg); background: var(--color-surface);
+/* The project button opens the Projects panel; the caret is two borders, no image. */
+.project-btn {
+  display: inline-flex; align-items: center; gap: var(--space-2); max-width: 180px;
+  font: inherit; font-weight: var(--weight-medium); color: var(--color-fg); background: var(--color-surface);
   border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm);
-  height: var(--control-sm); padding: 0 var(--space-2);
+  height: var(--control-sm); padding: 0 var(--space-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.project-btn::after { content: ''; flex-shrink: 0; width: 6px; height: 6px; border-right: 1.5px solid var(--color-muted); border-bottom: 1.5px solid var(--color-muted); transform: translateY(-2px) rotate(45deg); }
+.project-btn[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
+.project-btn:hover, .meter-btn:hover { background: var(--color-surface-2); }
+.meter-btn { font: inherit; font-size: var(--text-xs); background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); height: 28px; padding: 0 var(--space-2); }
+
+/* ---- Drop-down panels under the bar (panel.js) ---- */
+/* A panel gives way before the chat box does: it shrinks and scrolls when the window is short. */
+.panel { flex: 0 1 auto; min-height: 0; max-height: 55vh; overflow-y: auto; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface); display: flex; flex-direction: column; gap: var(--space-3); }
+.panel[hidden] { display: none; }
+.panel-section { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.panel-section + .panel-section { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+.panel-title { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-muted); }
+.panel-note { font-size: var(--text-xs); color: var(--color-muted); max-width: 52ch; }
+.project-list, .chat-list { display: flex; flex-direction: column; gap: var(--space-1); align-self: stretch; }
+.project-item, .chat-item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 28px;
+  font: inherit; text-align: left; color: var(--color-fg); background: transparent;
+  border: 1px solid transparent; border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2);
+}
+.project-item:hover, .chat-item:hover { background: var(--color-surface-2); }
+.project-item[aria-current="true"] { border-color: var(--color-border-strong); font-weight: var(--weight-medium); }
+.chat-item { overflow-wrap: anywhere; }
+.chat-item .muted { flex-shrink: 0; font-size: var(--text-xs); }
+.confirm { align-self: stretch; display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-bg); }
+.confirm-actions { display: flex; gap: var(--space-2); }
+.confirm-actions .btn { flex: 1 1 0; }
+progress { align-self: stretch; height: 8px; appearance: none; border: 0; border-radius: var(--radius-pill); overflow: hidden; background: var(--color-surface-2); }
+progress::-webkit-progress-bar { background: var(--color-surface-2); border-radius: var(--radius-pill); }
+progress::-webkit-progress-value { background: var(--color-fg); border-radius: var(--radius-pill); }
 .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: var(--weight-medium); background: var(--color-surface-2); color: var(--color-fg); }
 .pill-quiet { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); }
 .meter { font-size: var(--text-xs); color: var(--color-muted); }

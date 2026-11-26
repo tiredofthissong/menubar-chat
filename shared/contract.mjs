@@ -28,6 +28,7 @@ export const COMMANDS = {
 
 export const EVENT_TYPES = [
   'session',          // { sessionId, mode } a chat started or resumed
+  'past',             // { sessionId, turns } a past chat's own messages, shown when you pick it up
   'mode',             // { mode, label } Ask me first or Plan first
   'text',             // { text } whole lines of Claude's reply
   'tool',             // { id, tool, line } one plain line per tool call

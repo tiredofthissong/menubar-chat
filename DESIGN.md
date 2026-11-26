@@ -64,6 +64,16 @@ The most important screen in the app.
 - Those lines come out of the reply and show under it as quiet buttons (the same look as other buttons in the conversation; Send stays the one accent). A button sends its words as your message, exactly as if you'd typed them, so anything it leads to still gets its card.
 - Once you send anything, the older buttons switch off. Long suggestions wrap onto a second line.
 
+## Projects, Work or Personal, and usage (milestone 4)
+
+- **A panel, not a sidebar.** The plan said sidebar; at 480 pixels wide that leaves no room to chat. The project name in the top bar is a button that opens a panel under the bar instead: projects with their tag, the chats in this project (newest first, from Claude Code's own list) with **New chat**, then a Safety section. The spending figure opens a Usage panel the same way. Esc or a second click closes a panel and puts focus back on its button. A panel shrinks and scrolls before the chat box ever does.
+- **Picking up a past chat** redraws its turns (what you typed, what Claude wrote) and says "Picked up this chat"; anything you send carries on from there.
+- **Adding a folder** opens the Mac's own folder window, so a path never comes from the page. Home, the top of the disk, system folders and key folders are refused. You then pick Work or Personal; the two answers look the same.
+- **Tags take effect at once.** Changing a tag closes that project's open chat, so the next message runs under the new rules, and a card that was waiting is denied.
+- **No override.** Work to Personal asks first in the panel; Personal to Work doesn't, since it only adds safety. There is no button that turns the push block or the Work rules off.
+- **Push block** shows On, Off (with **Add push block**, which asks once more), or "has its own hook" (left alone). Only the app writes the hook; Claude never does.
+- **Usage** uses two plain bars (today against the cap; memory used) in the text colour, not the accent, so Send stays the one accent.
+
 ## Known gaps
 
 - Undo copies are kept in memory, so they're gone once the app quits.

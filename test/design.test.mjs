@@ -98,7 +98,7 @@ test('every button and field has a name you can hear, and nothing grabs focus by
     assert.ok(named, tag);
   }
   const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
-  const all = ['index.html', 'app.js', 'cards.js', 'log.js', 'dom.js'].map((f) => noComments(read(`app/window/${f}`))).join('\n');
+  const all = ['index.html', 'app.js', 'cards.js', 'log.js', 'dom.js', 'panel.js'].map((f) => noComments(read(`app/window/${f}`))).join('\n');
   assert.doesNotMatch(all, /autofocus|tabindex="-1"|tabIndex\s*=\s*-1/);
   assert.doesNotMatch(all, /\btabindex="[1-9]/, 'no custom tab order');
 });
