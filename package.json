@@ -1,6 +1,6 @@
 {
   "name": "menubar-chat",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "private": true,
   "description": "A Mac menu bar chat window for working with Claude, without the Terminal. Milestone 6.",
   "type": "module",

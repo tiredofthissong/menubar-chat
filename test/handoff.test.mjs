@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { pullHandoff, handoffUrl, isHandoffLink, HANDED, NOT_OPENED } from '../engine/handoff.mjs';
+import { pullHandoff, handoffUrl, isHandoffLink, HANDED, NOT_OPENED, NUDGE, createHandoffNudge } from '../engine/handoff.mjs';
+import { explainToolCall } from '../shared/explain.mjs';
 import { createHandoffOpener } from '../app/handoff-open.mjs';
 import { looksInside } from '../policy/devmode.mjs';
 import { createHelper } from '../engine/helper.mjs';
@@ -97,4 +98,39 @@ test('hand-off: only reading and searching inside the folder counts as looking',
   assert.equal(looksInside('WebFetch', { url: 'https://example.com' }, root), false);
   assert.equal(looksInside('Write', { file_path: '/work/garden/x.js' }, root), false);
   assert.equal(looksInside('AskUserQuestion', { questions: [] }, root), true, 'questions to you, then a plan, then the hand-off');
+});
+
+test('the check before the first file change: once a reply, never for one small edit or after "do it here"', () => {
+  const n = createHandoffNudge(explainToolCall);
+  n.newTurn('add a fertiliser page');
+  assert.equal(n.check('Read', { file_path: 'a.js' }, 'r1'), null, 'reading is not a change');
+  assert.equal(n.check('Bash', { command: 'npm test' }, 'b0'), null, 'running tests is not a change');
+  assert.equal(n.check('Edit', { file_path: 'a.js' }, 'e1'), null, 'one file edited: a small fix');
+  assert.equal(n.check('Edit', { file_path: 'b.js' }, 'e2'), NUDGE, 'a second file is held back once');
+  assert.equal(n.wasHeld('e2'), true);
+  assert.equal(n.check('Edit', { file_path: 'b.js' }, 'e3'), null, 'Claude tried again: it goes ahead');
+  n.newTurn('build');
+  assert.equal(n.check('Bash', { command: "cat > repot.html <<'EOF'\n<h1>x</h1>\nEOF" }, 'w1'), NUDGE, 'writing a file by command');
+  n.newTurn('build it, but do it here');
+  assert.equal(n.check('Write', { file_path: 'repot.html' }, 'w2'), null);
+});
+
+test('end to end: Claude starts building, the check holds the step back, and the build opens in Claude Code', async (t) => {
+  const { c, dir, ask, helper } = setup(t);
+  await helper.handleCommand({ type: 'setMode', project: 'garden', mode: 'dev' });
+  await ask('#bigbuild');
+  const [h] = c.of('handoff');
+  assert.equal(h.auto, true, 'the held-back step never ran, so it still opens by itself');
+  assert.equal(h.prompt, 'Build the repot page as planned.');
+  assert.equal(fs.existsSync(`${dir}/repot.html`), false, 'nothing was written here');
+  assert.equal(c.of('tool_failed').length, 0, 'the held-back step shows no error');
+  await ask('#bigbuild do it here');
+  assert.equal(c.of('handoff').length, 1, '"do it here" keeps the job in the app');
+});
+
+test('end to end: a small change tried again after the check shows its step line once', async (t) => {
+  const { c, ask, helper } = setup(t);
+  await helper.handleCommand({ type: 'setMode', project: 'garden', mode: 'dev' });
+  await ask('#smallwrite');
+  assert.equal(c.of('tool').length, 1); assert.equal(c.of('handoff').length, 0);
 });

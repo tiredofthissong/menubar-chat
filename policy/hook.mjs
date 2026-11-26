@@ -11,13 +11,15 @@ import { checkToolCall } from './rules.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit']);
 
-/** @param {{ project, hubPaths?: string[], changes?: { snapshotBefore(id, file): boolean }, onBlocked?: (rule, plain, toolUseID) => void, askFirst?: (tool, input, id, signal) => Promise<object|null> }} ctx */
-export function makePreToolUseHook({ project, hubPaths = [], changes = null, onBlocked = () => {}, askFirst = null }) {
+/** @param {{ project, hubPaths?: string[], changes?: { snapshotBefore(id, file): boolean }, onBlocked?: (rule, plain, toolUseID) => void, askFirst?: (tool, input, id, signal) => Promise<object|null>, nudge?: (tool, input, id) => string|null }} ctx */
+export function makePreToolUseHook({ project, hubPaths = [], changes = null, onBlocked = () => {}, askFirst = null, nudge = null }) {
   return async (input, toolUseID, opts) => {
     if (input?.hook_event_name !== 'PreToolUse') return {};
     const id = toolUseID ?? input.tool_use_id;
     const verdict = checkToolCall({ project, hubPaths }, input.tool_name, input.tool_input || {});
     if (verdict.decision !== 'deny') {
+      const held = nudge ? nudge(input.tool_name, input.tool_input || {}, id) : null; // the hand-off check (engine/handoff.mjs)
+      if (held) return decide('deny', held);
       if (changes && id && EDIT_TOOLS.has(input.tool_name) && input.tool_input?.file_path) changes.snapshotBefore(id, input.tool_input.file_path);
       const asked = askFirst ? await askFirst(input.tool_name, input.tool_input || {}, id, opts?.signal) : null;
       if (asked) return decide(asked.behavior === 'allow' ? 'allow' : 'deny', asked.behavior === 'allow' ? 'You allowed it.' : asked.message || 'You said no, so it was not run.');

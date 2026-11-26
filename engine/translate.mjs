@@ -74,7 +74,7 @@ export function translate(m, st) {
       if (EDIT_TOOLS.has(b.name)) events.push(event('why', { seen: Boolean(own), why: own, line }));
       st.textSinceTool = '';
       facts.toolStarted = line;
-      (facts.toolCalls ||= []).push({ name: b.name, input: b.input }); // the hand-off checks what ran
+      (facts.toolCalls ||= []).push({ id: b.id, name: b.name, input: b.input }); // the hand-off checks what ran
     }
     st.partialSeen = false;
     const u = m.message?.usage;

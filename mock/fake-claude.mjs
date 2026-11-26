@@ -28,6 +28,8 @@ export const SCENARIOS = {
   web: [{ say: 'Why: you asked which plants need shade.\n' }, { tool: 'WebFetch', input: { url: 'https://example.org/shade-plants', prompt: 'List shade plants' } }],
   bigjob: [{ say: 'This is a big job, so I am handing it to Claude Code.\nHandoff: Build a watering schedule page for the garden app & add tests.\n' }],
   bigread: [{ tool: 'Read', input: { file_path: 'notes.txt' } }, { say: 'Big job.\nHandoff: Rewrite every page.\n' }],
+  smallwrite: [{ tool: 'Write', input: { file_path: 'notes.txt', content: 'fixed typo' } }],
+  bigbuild: [{ say: 'Plan agreed.\n' }, { tool: 'Write', input: { file_path: 'repot.html', content: '<h1>Repot</h1>' }, big: 'Build the repot page as planned.' }],
   bigrun: [{ tool: 'Bash', input: { command: 'npm test' } }, { say: 'Big job.\nHandoff: Rewrite every page.\n' }],
   // Like Claude: several searches in one go, each asking at the same moment.
   searches: [{ say: 'Why: you asked which plants grow in shade.\n' }, { together: ['best shade plants', 'shade perennials', 'hostas ferns astilbe'].map((query) => ({ tool: 'WebSearch', input: { query } })) }],
@@ -139,7 +141,7 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
 
   const usage = () => ({ input_tokens: 1200, output_tokens: 180, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
   const assistant = (content, parent = null) => write({ type: 'assistant', message: { id: 'msg_' + randomUUID().slice(0, 8), type: 'message', role: 'assistant', model: 'claude-mock', content, stop_reason: null, stop_sequence: null, usage: usage() }, parent_tool_use_id: parent, ...base() });
-  const delta = (text) => write({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, parent_tool_use_id: null, ...base() });
+  const delta = (text) => (lastText += text, write({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, parent_tool_use_id: null, ...base() }));
 
   async function gate(name, input, toolUseId, step, signal) {
     let hookAllowed = false;
@@ -164,7 +166,10 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
     return name === 'Edit' ? applyEdit(cwd, input) : { ok: true };
   }
 
+  let lastText = '';
+  const handedOff = () => /Handoff:/.test(lastText);
   async function runTurn(prompt, signal) {
+    lastText = '';
     write({ type: 'system', subtype: 'init', apiKeySource: keySource, claude_code_version: 'mock', cwd, tools: ['Read', 'Edit', 'Write', 'Bash'], mcp_servers: [], model: 'claude-mock', permissionMode: mode, slash_commands: ['review', 'design-rules'], output_style: 'default', skills: [], plugins: [], ...base() });
     for (const step of pick(prompt)) {
       await sleep(delayMs, signal);
@@ -172,10 +177,16 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
       if (step.say) { delta(step.say); assistant([{ type: 'text', text: step.say }]); continue; }
       if (step.chunks) { for (const c of step.chunks) delta(c); assistant([{ type: 'text', text: step.chunks.join('') }]); continue; }
       const group = step.together || [step];
-      const ids = group.map(() => 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 20));
-      assistant(group.map((s, i) => ({ type: 'tool_use', id: ids[i], name: s.tool, input: s.input })));
-      const verdicts = await Promise.all(group.map((s, i) => gate(s.tool, s.input, ids[i], s, signal)));
-      verdicts.forEach((verdict, i) => write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ids[i], content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...(verdict.result ? { tool_use_result: verdict.result } : {}), ...base() }));
+      // Like Claude at the app's hand-off check: a big step hands off, anything else tries again once.
+      for (let tries = 0; tries < 2; tries++) {
+        const ids = group.map(() => 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 20));
+        assistant(group.map((s, i) => ({ type: 'tool_use', id: ids[i], name: s.tool, input: s.input })));
+        const verdicts = await Promise.all(group.map((s, i) => gate(s.tool, s.input, ids[i], s, signal)));
+        verdicts.forEach((verdict, i) => write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ids[i], content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...(verdict.result ? { tool_use_result: verdict.result } : {}), ...base() }));
+        if (!verdicts.some((v) => /^Not run yet: this app checks the hand-off rule/.test(v.why || ''))) break;
+        if (step.big) { const t = `Handing this to Claude Code.\nHandoff: ${step.big}\n`; delta(t); assistant([{ type: 'text', text: t }]); break; }
+      }
+      if (step.big && handedOff()) break;
     }
     cost += 0.01;
     write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: { 'claude-mock': { contextWindow: 200000 } }, permission_denials: [], ...base() });

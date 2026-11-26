@@ -14,7 +14,8 @@ import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
-import { pullHandoff, handoffUrl, HANDED, NOT_OPENED } from './handoff.mjs';
+import { pullHandoff, handoffUrl, HANDED, NOT_OPENED, createHandoffNudge } from './handoff.mjs';
+import { explainToolCall } from '../shared/explain.mjs';
 import { looksInside } from '../policy/devmode.mjs';
 import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
@@ -33,7 +34,7 @@ export class ProjectSession {
     this.changes = new ChangeStore(project.path);
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
-    this.approvals = 0; this.next = []; this.hand = { prompt: null }; this.toolsRan = false; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
+    this.approvals = 0; this.next = []; this.hand = { prompt: null }; this.ran = new Set(); this.nudge = createHandoffNudge(explainToolCall); this.runNo = 0; // runNo: each Claude Code process counts apart toward today
     this.permit = createPermit(this, { now: settings.now });
     this.broker = new ApprovalBroker({
       timeoutMs: settings.approvalTimeoutMs, gatherMs: settings.gatherMs ?? 120, onHour: () => this.permit.onHour(),
@@ -67,6 +68,7 @@ export class ProjectSession {
     const options = buildQueryOptions({
       project: this.project, mode: this.mode, hubPaths, canUseTool: this.canUseTool,
       preToolUseHook: makePreToolUseHook({ project: this.project, hubPaths, changes: this.changes, askFirst: this.permit.askFirst,
+        nudge: (tool, input, id) => { const held = this.nudge.check(tool, input, id); if (held && id) { this.explained.add(id); this.heldLine = explainToolCall(tool, input, this.project.path).plain; } return held; },
         onBlocked: (rule, plain, id) => { if (id) this.explained.add(id); this.emit(event('blocked', { rule, plain })); } }),
       keychainService: this.settings.keychainService ?? null, resumeId: this.sessionId,
       budgetUsd: this.budget.left, spawn: this.settings.spawn, model: this.settings.model, hookTimeoutSec: hookTimeoutSec(this.settings.approvalTimeoutMs),
@@ -100,12 +102,12 @@ export class ProjectSession {
       if (fresh) this.emit(event('session', { sessionId: this.sessionId, mode: this.mode }));
     }
     for (const ev of events) {
-      if (ev.type !== 'text') { this.emit(ev); continue; }
+      if (ev.type !== 'text') { if (!(ev.type === 'tool' && ev.line === this.heldLine)) this.emit(ev); continue; } // a step tried again after the check shows once
       const text = pullHandoff(pullNext(ev.text, this.next), this.hand); // "Next:" lines become buttons; a "Handoff:" line opens Claude Code
       if (text) this.emit({ ...ev, text });
     }
     if (facts.toolStarted) this.setStatus('working', facts.toolStarted.slice(0, 60));
-    for (const t of facts.toolCalls || []) if (!looksInside(t.name, t.input, this.project.path)) this.toolsRan = true; // reading here is fine
+    for (const t of facts.toolCalls || []) if (!looksInside(t.name, t.input, this.project.path)) this.ran.add(t.id); // reading here is fine
     if (facts.requestTokens !== undefined) this.meter.onRequestTokens(facts.requestTokens);
     for (const r of facts.toolResults || []) this.onToolResult(r);
     if (facts.result) this.onResult(facts.result);
@@ -128,7 +130,8 @@ export class ProjectSession {
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
     if (this.next.length) this.emit(event('suggestions', { items: this.next }));
     const url = handoffUrl(this.hand.prompt, this.project.path); // after more than reading here, it never opens by itself
-    if (url) this.emit(event('handoff', { prompt: this.hand.prompt, url, auto: !this.toolsRan, line: this.toolsRan ? NOT_OPENED : HANDED }));
+    const more = [...this.ran].some((id) => !this.nudge.wasHeld(id)); // a step the check held back never ran
+    if (url) this.emit(event('handoff', { prompt: this.hand.prompt, url, auto: !more, line: more ? NOT_OPENED : HANDED }));
     this.next = [];
     this.emit(event('turn_done', { ok: res.ok, approvals: this.approvals, costUsd: res.totalCostUsd ?? 0, spentUsd, capUsd }));
     this.approvals = 0; this.turnOpen = false;
@@ -137,7 +140,7 @@ export class ProjectSession {
   }
 
   send(text) {
-    this.next = []; this.hand = { prompt: null }; this.toolsRan = false;
+    this.next = []; this.hand = { prompt: null }; this.ran.clear(); this.nudge.newTurn(text); this.heldLine = null;
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
     // Typing while a question waits answers it; while any other card waits, it's a "no".
     if (this.broker.answerTyped(text)) return;

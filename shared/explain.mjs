@@ -49,26 +49,28 @@ const BLOCK_ONLY = /^(do|done|then|else|fi|esac|\{|\}|\(|\))(\s*[<>].*)?$/;
 export function splitSteps(command) {
   return splitTopLevel(stripHeredocs(command).command) // file text written with <<EOF is data, not steps
     .map((s) => { let t = s.trim(); while (BLOCK_OPENER.test(t)) t = t.replace(BLOCK_OPENER, ''); return t; })
-    .filter((s) => s && !BLOCK_ONLY.test(s));
+    .filter((s) => s && !BLOCK_ONLY.test(s) && !s.startsWith('#')); // a # line is a note, not a step
 }
 
 // `cat > f`, `echo x >> f`, `tee f`: the step writes that file. Returns 'write', 'add' or ''.
-const WRITERS = /^(cat|echo|printf|tee)\b/;
+const WRITERS = /^(cat|echo|printf|tee|sed)\b/;
 function writes(bare) {
   if (!WRITERS.test(bare)) return '';
   const m = maskQuotes(bare);
+  if (/^sed\b/.test(m) && !/(^|\s)\d?>/.test(m)) return ''; // sed alone edits text; sed > file makes one
   if (/^tee\b/.test(m)) return /\s-\w*a/.test(m) ? 'add' : 'write';
   if (/(^|\s)\d?>>\s*[^\s&]/.test(m)) return 'add';
   return /(^|\s)\d?>(?![>&])\s*\S/.test(m) ? 'write' : '';
 }
 
 // The files `cat a b > c` reads (words before the first redirect), so the card names them too.
-const catSources = (bare) => (/^cat\b/.test(bare) ? (bare.match(/"[^"]*"|'[^']*'|\S+/g) || []).slice(1) : [])
+const catSources = (bare) => (/^(cat|sed)\b/.test(bare) ? (bare.match(/"[^"]*"|'[^']*'|\S+/g) || []).slice(1) : [])
   .reduce((acc, x) => { if (acc.stop || /^\d?[<>|&]/.test(x)) acc.stop = true; else if (!/^-/.test(x)) acc.push(x); return acc; }, Object.assign([], { stop: false }));
 
 export function glossStep(step) {
   const bare = step.replace(/^(\w+=\S+\s+)+/, '');
   const w = writes(bare);
+  if (w && /^sed\b/.test(bare)) return 'make a file from another';
   if (w && catSources(bare).length) return w === 'add' ? 'add a file onto another' : 'copy files'; // cat .env > out.txt reads .env
   if (w) return w === 'add' ? 'add to a file' : 'write a file';
   for (const [re, words] of GLOSS) if (re.test(bare)) return words;
@@ -87,10 +89,14 @@ export function stepTarget(step) {
     if (cmd === 'tee') { const f = rest.find((x) => !/^-/.test(x)); return f ? clip(unquote(f)) : ''; }
     const at = words.findIndex((x) => /^\d?>{1,2}/.test(x));
     const f = unquote(words[at].replace(/^\d?>{1,2}/, '') || words[at + 1] || '');
-    const from = catSources(words.join(' ')).map(unquote);
+    const all = catSources(words.join(' ')).map(unquote);
+    const from = cmd === 'sed' ? all.slice(-1) : all; // sed: the file, not the pattern
     return f ? clip(from.length ? `${from.join(', ')} → ${f}` : f) : '';
   }
-  if (cmd === 'sed' && /^-\S*i/.test(rest.find((x) => /^-/.test(x)) || '')) return clip(unquote(rest.at(-1) || ''));
+  if (cmd === 'sed' && /^-\S*i/.test(rest.find((x) => /^-/.test(x)) || '')) { // the files after the pattern
+    const args = rest.filter((x) => !/^-/.test(x)).map(unquote).filter(Boolean);
+    return clip(args.slice(rest.includes('-e') ? 0 : 1).filter((x) => !/^[sy]?[^\w\s]/.test(x) || /\.\w+$/.test(x)).join(', '));
+  }
   if (!cmd || !TARGETED.test(cmd)) return '';
   const stop = rest.findIndex((w) => /^\d?[<>|&]/.test(w)); // a redirect like > out.txt isn't the target
   let args = (stop < 0 ? rest : rest.slice(0, stop)).filter((w) => !/^-/.test(w)).map(unquote);

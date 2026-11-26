@@ -45,3 +45,33 @@ export const isHandoffLink = (u) => typeof u === 'string' && u.length < 20000 &&
 
 export const HANDED = 'Opened Claude Code in Claude\'s desktop app with this request. Confirm the folder, read the request, then press Send there. It runs on your Claude subscription.';
 export const NOT_OPENED = 'Claude went past reading this project\'s files before handing this off, so I didn\'t open Claude Code by itself. Say "hand it off" to send it over.';
+
+// A check at the first file change of a turn (Bromo, Nov 26: twice Claude built a whole page here
+// anyway). The step is held back once with this note, so Claude decides then: hand off, or carry on.
+// One Edit to one file is a small fix and goes straight through; so does anything after "do it here".
+export const NUDGE = 'Not run yet: this app checks the hand-off rule before the first file change in a reply. '
+  + 'If this is a big job (a new feature, page or screen, or changes across several files), change nothing more: '
+  + 'reply with one sentence and the "Handoff:" line, with the whole plan, the person\'s answers and anything already done. '
+  + 'If it is a small fix, or the person said to do it here, run this same step again and carry on.';
+const FILE_STEP = /^(Write a file|Add to a file|Copy files|Add a file onto another|Make a file from another|Change a file|Make a folder|Create an empty file|Move or rename files)$/;
+const HERE = /\b(do|build|make|keep) (it|this|that) here\b|\bin this app\b/i;
+
+export function createHandoffNudge(explain) {
+  const st = { asked: false, here: false, edited: new Set(), held: new Set() };
+  const changes = (name, input) => {
+    if (name === 'Write' || name === 'MultiEdit' || name === 'NotebookEdit') return true;
+    if (name === 'Edit') { st.edited.add(input?.file_path); return st.edited.size > 1; } // a second file
+    return name === 'Bash' && explain('Bash', input).items.some((i) => FILE_STEP.test(i.say));
+  };
+  return {
+    /** A new message from the person. */
+    newTurn(text) { st.asked = false; st.here = HERE.test(String(text ?? '')); st.edited.clear(); st.held.clear(); },
+    /** The note for Claude if this step is held back, else null. */
+    check(name, input, id) {
+      if (st.asked || st.here || !changes(name, input)) return null;
+      st.asked = true; if (id) st.held.add(id);
+      return NUDGE;
+    },
+    wasHeld: (id) => st.held.has(id),
+  };
+}
