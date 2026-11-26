@@ -5,13 +5,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { COURSES, TOPICS, isLearnLink } from '../shared/learn.mjs';
 
+const known = (o, k) => typeof k === 'string' && Object.hasOwn(o, k);
+
 const KEEP = 2000; // lines; the oldest go first
 
 /** One log line for a card, or null. Only the topic and its tag: never the command or a file name. */
 export function entryFor(ev, at = new Date()) {
-  const topic = ev?.card?.learn?.topic;
-  if (!Object.hasOwn(TOPICS, topic)) return null;
-  return { at: at.toISOString(), project: String(ev.project || ''), topic, course: TOPICS[topic].course };
+  const { topic, course } = ev?.card?.learn || {};
+  if (!known(TOPICS, topic) || !known(COURSES, course)) return null;
+  return { at: at.toISOString(), project: String(ev.project || ''), topic, course };
 }
 
 /** The log by course: how often, which topics, and when last. Courses you haven't met come last. */
@@ -19,7 +21,7 @@ export function summarize(entries) {
   const by = new Map(Object.keys(COURSES).map((c) => [c, { course: c, url: COURSES[c], count: 0, topics: [], last: null }]));
   for (const e of entries) {
     const s = by.get(e?.course);
-    if (!s || !Object.hasOwn(TOPICS, e.topic)) continue;
+    if (!s || !known(TOPICS, e.topic)) continue;
     s.count++; if (!s.topics.includes(e.topic)) s.topics.push(e.topic);
     if (!s.last || e.at > s.last) s.last = e.at;
   }

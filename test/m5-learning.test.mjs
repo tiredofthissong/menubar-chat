@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { LEARN_HOSTS, COURSES, TOPICS, ALL_LINKS, isLearnLink, learnFor, topicFor } from '../shared/learn.mjs';
+import { LEARN_HOSTS, COURSES, TOPICS, PICKS, ALL_LINKS, isLearnLink, learnFor, topicFor, createLearnPicker, docsLink } from '../shared/learn.mjs';
+import { visibleText } from '../scripts/check-learn.mjs';
 import { entryFor, summarize, readLog, createLearning } from '../app/learning.mjs';
 import { createChatRecord, entryText, appendHandoff } from '../engine/wrapup.mjs';
 import { skillDirs, skillStamp } from '../engine/skills.mjs';
@@ -35,7 +36,9 @@ test('every learn-more link is https on Claude Academy or the Claude Code docs',
   for (const url of ALL_LINKS) {
     const u = new URL(url);
     assert.equal(u.protocol, 'https:', url); assert.ok(LEARN_HOSTS.includes(u.hostname), url);
-    assert.equal(u.search + u.hash + u.username + u.port, '', url);
+    assert.equal(u.search + u.username + u.port, '', url);
+    if (u.hostname === 'academy.claude.com') assert.equal(u.hash, '', url);
+    else assert.match(u.hash, /^#[a-z-]*:~:text=[^&,]+$/, `${url} opens at one highlighted passage`);
     assert.ok(isLearnLink(url), url);
   }
   const tools = [['Bash', { command: 'npm test' }], ['Bash', { command: 'git push' }], ['Edit', {}], ['Write', {}], ['Read', {}],
@@ -47,6 +50,26 @@ test('every learn-more link is https on Claude Academy or the Claude Code docs',
   }
   assert.equal(topicFor('Bash', { command: 'rm -rf x' }, true), 'deleting');
   assert.equal(topicFor('Bash', { command: 'cd a && git status' }), 'git');
+  assert.equal(topicFor('Bash', { command: 'npm ci && npm test' }), 'chain');
+});
+
+test('Learn more fits the step, and one chat never offers the same lesson or passage twice', () => {
+  const p = createLearnPicker();
+  const first = p.pick('Edit', {}); const second = p.pick('Write', {}); const third = p.pick('Edit', {});
+  assert.equal(first.docs, PICKS.edits[0].docs); assert.match(first.docs, /#undo-changes-with-checkpoints:~:text=File%20edits%20are%20reversible$/);
+  assert.equal(second.docs, PICKS.edits[1].docs, 'the next card gets the next most useful passage');
+  assert.equal(third.seen, true); assert.equal(third.academy, undefined); assert.equal(third.docs, undefined);
+  assert.match(third.line, /Undo/, 'the plain line stays');
+  // Across kinds: after two command cards, a chained command offers only what's new (its passage, not the lesson).
+  const q = createLearnPicker(); q.pick('Bash', { command: 'ls' }); q.pick('Bash', { command: 'ls' });
+  const chain = q.pick('Bash', { command: 'a && b' });
+  assert.equal(chain.academy, undefined, 'that lesson was shown already'); assert.match(chain.docs, /#compound-commands:~:text=/);
+  assert.equal(q.pick('Bash', { command: 'a && b' }).seen, true, 'its other pick was all shown on the command cards');
+  const shown = [first, second, chain, ...[1, 2, 3].map(() => q.pick('Read', {}))].flatMap((x) => [x.academy, x.docs]).filter(Boolean);
+  assert.ok(shown.every(isLearnLink));
+  assert.ok(createLearnPicker().pick('Edit', {}).docs, 'a new chat starts fresh');
+  assert.equal(docsLink('p', 's', 'a-b, c'), 'https://code.claude.com/docs/en/p#s:~:text=a%2Db%2C%20c', 'dashes and commas are escaped');
+  assert.equal(visibleText('<p>File <strong>edits</strong>&nbsp;are</p><script>x</script>'), ' File edits are ');
 });
 
 test('near-miss links are refused', () => {
@@ -59,15 +82,16 @@ test('near-miss links are refused', () => {
 });
 
 test('learning log: each entry carries an Academy course tag and never the command', () => {
-  for (const topic of Object.keys(TOPICS)) assert.ok(COURSES[TOPICS[topic].course], `${topic} has a real course`);
+  for (const [topic, picks] of Object.entries(PICKS)) for (const p of picks) assert.ok(COURSES[p.course] && p.academy.startsWith(`${COURSES[p.course]}/`), `${topic}: the lesson is in its course`);
   const ev = { type: 'approval', project: 'site', card: { command: 'cat ~/.secret', learn: learnFor('Bash', { command: 'git pull' }) } };
   const e = entryFor(ev, new Date('2026-11-26T10:00:00Z'));
-  assert.deepEqual(e, { at: '2026-11-26T10:00:00.000Z', project: 'site', topic: 'git', course: 'Claude Code in action' });
+  assert.deepEqual(e, { at: '2026-11-26T10:00:00.000Z', project: 'site', topic: 'git', course: 'Claude Code 101' });
+  assert.equal(entryFor({ card: { learn: { topic: 'git', course: 'Made up' } } }), null);
   assert.doesNotMatch(JSON.stringify(e), /secret|cat /);
   assert.equal(entryFor({ card: { learn: { topic: '__proto__' } } }), null);
   assert.equal(entryFor({ card: {} }), null);
   const s = summarize([e, { ...e, topic: 'planning' }, { ...e, course: 'Made up' }, entryFor({ project: 'x', card: { learn: learnFor('Skill', {}) } })]);
-  assert.equal(s[0].course, 'Claude Code in action'); assert.equal(s[0].count, 2); assert.deepEqual(s[0].topics, ['git', 'planning']);
+  assert.equal(s[0].course, 'Claude Code 101'); assert.equal(s[0].count, 2); assert.deepEqual(s[0].topics, ['git', 'planning']);
   assert.equal(s.find((c) => c.course === 'Introduction to agent skills').count, 1);
   assert.equal(s.reduce((n, c) => n + c.count, 0), 3, 'an entry with an unknown course is not counted');
 });

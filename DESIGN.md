@@ -76,8 +76,10 @@ The most important screen in the app.
 
 ## Learning layer and extras (milestone 5)
 
-- **One plain line on every card** says what this kind of step is ("A delete is hard to take back…"), muted and below the ask, so it never competes with Deny and Allow. **Learn more** opens the matching Claude Academy course; **Docs** opens the Claude Code docs page.
-- **Checked links only.** Every link lives in `shared/learn.mjs` and was opened on Nov 26, 2026. The app opens a link only if it is exactly one of those, on academy.claude.com or code.claude.com. Anything else, however close, is refused.
+- **One plain line on every card** says what this kind of step is ("A delete is hard to take back…"), muted and below the ask, so it never competes with Deny and Allow. **Learn more** opens the Claude Academy lesson that fits this step (not just the course). **Docs** opens the Claude Code docs at the section that fits, with the key passage highlighted (a text fragment, which Safari and Chrome both follow; a browser that doesn't still opens the right section).
+- **Fits the step.** A chained command (`&&`, `;`, `|`) gets the passage on how each part is checked; a delete gets the one on why a Terminal delete has no Undo; and so on, for 11 kinds of card.
+- **No repeats in a chat.** Each kind of card has its picks in order, most useful first. A lesson or passage this chat already offered, on any card, isn't offered again: the card moves to the next pick, and once a kind's picks are used up its card keeps the plain line and drops the links. A new chat, or a past chat picked up, starts fresh.
+- **Checked links only.** Every link lives in `shared/learn.mjs`. Lessons come from the Academy's own catalog; `npm run check-learn` opens each docs page and checks that the section and the passage are really there (22 of 22 on Nov 26, 2026). The app opens a link only if it is exactly one of those. Anything else, however close, is refused.
 - **Learning log.** Each card adds one line to `learning-log.jsonl` in the app's own folder: the time, the project, the topic and its Academy course. Never the command or a file name. The Usage panel shows the courses you've met, with counts; a click opens the course. The oldest lines go after 2,000.
 - **Starters.** An empty chat offers three ways to start. A starter fills the chat box and puts the cursor there; nothing goes until you press Send.
 - **Warm start.** Picking a project starts Claude Code in the background (only when the key is in place), so the first reply comes sooner. It costs nothing until you send.

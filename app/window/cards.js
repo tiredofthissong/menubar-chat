@@ -33,11 +33,9 @@ window.ChatCards = (() => {
     const l = card.learn;
     if (!l || typeof l.line !== 'string' || typeof open !== 'function') return null;
     const box = el('div', 'card-learn'); box.append(el('span', 'card-learn-line', l.line));
-    const more = button('Learn more', 'btn btn-small btn-quiet', () => open(l.academy));
-    more.title = `${l.course} on Claude Academy`;
-    const docs = button('Docs', 'btn btn-small btn-quiet', () => open(l.docs));
-    docs.title = 'The Claude Code docs page on this';
-    box.append(more, docs);
+    // Only what this chat hasn't shown yet: a lesson, and a docs page opened at the passage that fits.
+    if (l.academy) { const b = button('Learn more', 'btn btn-small btn-quiet', () => open(l.academy)); b.title = `The lesson on this, in ${l.course} on Claude Academy`; box.append(b); }
+    if (l.docs) { const b = button('Docs', 'btn btn-small btn-quiet', () => open(l.docs)); b.title = 'The Claude Code docs, opened at the part about this, highlighted'; box.append(b); }
     return box;
   }
 

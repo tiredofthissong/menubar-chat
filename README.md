@@ -20,7 +20,7 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Projects: click the project name for your folders (each tagged Work or Personal), its past chats to pick up, **New chat**, and **Add a folder…** (picked in the Mac's own folder window) | Real, tested |
 | Work or Personal: untagged counts as Work. Work blocks GitHub, `gh` and your personal hub with no button to override; making a project Personal asks first. **Add push block** puts the pre-push hook in a work repo after you confirm | Real, tested with real git |
 | Usage: click the spending figure for today against the $5 cap, this chat in dollars, and how much of Claude's memory the chat has used | Real, tested |
-| Learning: every card has one plain line, plus **Learn more** (Claude Academy) and **Docs** (code.claude.com), from a checked list only. The Usage panel shows a learning log by Academy course | Real, tested |
+| Learning: every card has one plain line, plus **Learn more** (the Claude Academy lesson for this step) and **Docs** (code.claude.com, opened at the passage that fits, highlighted). A chat never offers the same lesson or passage twice. Checked links only. The Usage panel shows a learning log by Academy course | Real, tested |
 | Starters: an empty chat offers three ways to start; one fills the chat box and sends nothing | Real, tested |
 | Warm start: picking a project starts Claude Code early, so the first reply is quicker | Real, tested |
 | **Wrap up this chat** (Projects panel): after you confirm, adds one dated note to the end of `HANDOFF.md` in the project folder and changes nothing else | Real, tested |
@@ -60,6 +60,7 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 | `npm test` | Runs the checks (no key, no network, no cost). Every source file stays at 200 lines or fewer |
 | `npm run scratch` | Makes `~/menubar-scratch` with two test projects and a local stand-in for GitHub |
 | `npm run block-pushes -- <folder>` | Makes every `git push` from that repo fail. `--remove` takes it off again |
+| `npm run check-learn` | Opens each docs page a Docs button points at and checks the highlighted passage is still there (needs the internet) |
 
 ## How it stays safe
 

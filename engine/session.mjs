@@ -15,7 +15,7 @@ import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
-import { learnFor } from '../shared/learn.mjs';
+import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
 
 export class ProjectSession {
@@ -33,7 +33,7 @@ export class ProjectSession {
     Object.assign(this, { project, sdk, status, budget, settings, log });
     this.emit = (ev) => emit({ ...ev, project: project.name });
     this.mode = START_MODE;
-    this.sessionId = null; this.slashCommands = null; this.q = null; this.input = null;
+    this.sessionId = null; this.slashCommands = null; this.q = null; this.input = null; this.learn = createLearnPicker();
     this.changes = new ChangeStore(project.path);
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
@@ -58,7 +58,7 @@ export class ProjectSession {
     const verdict = checkToolCall({ project: this.project, hubPaths: this.settings.hubPaths }, toolName, input);
     if (verdict.decision === 'deny') return { behavior: 'deny', message: verdict.plain, toolUseID: opts?.toolUseID };
     const card = explainToolCall(toolName, input, this.project.path);
-    const answer = await this.broker.ask(toolName, input, opts, { ...card, learn: learnFor(toolName, input, card.danger) });
+    const answer = await this.broker.ask(toolName, input, opts, { ...card, learn: this.learn.pick(toolName, input, card.danger) });
     // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
     if (toolName === 'ExitPlanMode' && answer.behavior === 'allow' && this.mode === 'plan') this.noteMode('default');
     return answer;
@@ -183,7 +183,7 @@ export class ProjectSession {
   }
 
   /** Pick up a past chat (or start fresh with null). Anything waiting is denied first. */
-  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(); }
+  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(); this.learn = createLearnPicker(); }
 
   async stop() {
     this.broker.denyAll('Stopped before you answered, so it was not run.');
