@@ -44,8 +44,9 @@ test('window: strict content policy, plain script, no innerHTML', () => {
   const html = read('app/window/index.html');
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'/);
   assert.doesNotMatch(html, /<script>(?!<\/script>)/, 'no inline script');
-  const js = code('app/window/app.js');
-  assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/);
+  for (const f of ['app/window/app.js', 'app/window/markdown.js']) {
+    assert.doesNotMatch(code(f), /innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/, f);
+  }
 });
 
 test('approval buttons: Allow and Deny look the same and neither is pre-selected', () => {

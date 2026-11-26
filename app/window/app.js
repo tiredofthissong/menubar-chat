@@ -59,10 +59,15 @@
     box.append(node);
     if (project === state.current) followIfStuck();
   }
+  // Claude's reply arrives a line or so at a time. Keep the raw text and redraw the bubble with
+  // real headings, lists and code blocks each time (markdown.js builds elements, never HTML).
+  const MD = window.ChatMarkdown;
+  const sources = new WeakMap(); // bubble -> the raw text so far
   function addText(project, text) {
     let b = state.bubble.get(project);
-    if (!b) { b = el('div', 'msg msg-claude', ''); state.bubble.set(project, b); add(project, b); }
-    b.textContent += text;
+    if (!b) { b = el('div', 'msg msg-claude md', ''); sources.set(b, ''); state.bubble.set(project, b); add(project, b); }
+    sources.set(b, sources.get(b) + text);
+    b.replaceChildren(MD.render(sources.get(b), document));
     if (project === state.current) followIfStuck();
   }
   const addLine = (project, text, cls = '') => { state.bubble.delete(project); add(project, el('div', `line ${cls}`.trim(), text)); };
@@ -84,16 +89,28 @@
   // ---- Approval cards ----
   function renderCard(project, card) {
     const c = el('article', card.danger ? 'card danger' : 'card');
-    c.setAttribute('aria-label', `Waiting on you in ${project}`);
-    c.append(el('div', 'card-title', `Waiting on you · ${project}`));
-    c.append(el('p', '', card.plain || `Use ${card.toolName}.`));
-    if (Array.isArray(card.steps) && card.steps.length > 1) {
+    c.setAttribute('aria-label', `Claude is asking you, in ${project}`);
+    c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
+    const items = Array.isArray(card.items) && card.items.length > 1 ? card.items : null;
+    // One plain line first. A chained command lists every step below it, so the line only counts them.
+    c.append(el('p', 'card-ask', items ? `Run ${items.length} steps, in this order:` : (card.plain || `Use ${card.toolName}.`)));
+    if (items) {
+      const ol = el('ol', 'card-steps');
+      for (const it of items) {
+        const li = el('li', it.danger ? 'danger' : '');
+        li.append(el('span', 'step-say', it.say));
+        if (it.target) li.append(el('span', 'step-target', it.target));
+        ol.append(li);
+      }
+      c.append(ol);
+    } else if (Array.isArray(card.steps) && card.steps.length > 1) { // older card shape: raw steps
       const ol = el('ol', 'card-steps');
       for (const s of card.steps) ol.append(el('li', /^(sudo\s+)?rm\b/.test(s) ? 'danger' : '', s));
       c.append(ol);
     }
+    if (card.danger) c.append(el('p', 'card-warn', 'This deletes files. Deleted files may not come back.'));
     if (card.command) {
-      const d = el('details'); d.append(el('summary', '', 'Exact command'), el('code', '', card.command));
+      const d = el('details'); d.append(el('summary', '', 'Show the exact command'), el('code', '', card.command));
       c.append(d);
     }
     const row = el('div', 'card-actions');

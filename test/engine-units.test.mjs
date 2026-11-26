@@ -66,6 +66,15 @@ test('explain: a chain names every step, and rm is flagged', () => {
   assert.match(explainToolCall('Edit', { file_path: '/tmp/p/notes.txt' }, '/tmp/p').plain, /notes\.txt/);
 });
 
+test('explain: each card step in plain words, with the file it touches', () => {
+  const ex = explainToolCall('Bash', { command: 'git pull origin main && mkdir -p .claude/skills/demo && cp kit/SKILL.md .claude/skills/demo/ && rm -rf "build dir"' });
+  assert.deepEqual(ex.items.map((i) => i.say), ['Download the latest changes', 'Make a folder', 'Copy files', 'DELETE files']);
+  assert.deepEqual(ex.items.map((i) => i.target), ['', '.claude/skills/demo', 'kit/SKILL.md → .claude/skills/demo/', 'build dir']);
+  assert.deepEqual(ex.items.map((i) => i.danger), [false, false, false, true]);
+  assert.equal(ex.items.length, ex.steps.length, 'every step still listed');
+  assert.equal(explainToolCall('Bash', { command: 'chmod +x run.sh && cat .env > out.txt' }).items[1].target, '.env');
+});
+
 test('explain: a shell loop lists its real steps, not its keywords', () => {
   const ex = explainToolCall('Bash', { command: 'cd ~/x; ls; for d in */; do if [ -d "$d/.git" ]; then echo "$d"; fi; done; echo end' });
   assert.equal(ex.plain, 'Run 6 steps: go into a folder; list files; repeat for each item; check a condition; print text; print text.');
