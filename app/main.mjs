@@ -1,19 +1,18 @@
-// main.mjs - the Electron side of the proving kit: menu bar icon, window, hotkey,
-// notifications, and one Claude Code session per test project.
+// main.mjs - the Electron side: menu bar icon, window, hotkey and notifications.
+// Claude Code itself runs in a background process (engine/helper-process.mjs), reached only
+// through Electron's built-in messaging (app/helper-link.mjs): no network port, no socket.
 // Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden,
 // and only shown or hidden, so it opens fast.
-import { app, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen } from 'electron';
+import { app, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
 import menubarPkg from 'menubar';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import { ProjectSession } from '../engine/session.mjs';
-import { StatusBoard } from '../engine/status.mjs';
-import { Budget } from '../engine/budget.mjs';
 import { KEYCHAIN_SERVICE, DEFAULT_MODEL } from '../engine/options.mjs';
-import { redact } from '../engine/redact.mjs';
+import { validateCommand } from '../shared/contract.mjs';
+import { redact } from '../shared/redact.mjs';
+import { createHelperLink } from './helper-link.mjs';
 import { Animator } from './animator.mjs';
 
 const { menubar } = menubarPkg;
@@ -28,17 +27,7 @@ const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-const status = new StatusBoard();
-// Today's spend survives restarts: a tiny JSON file in the app's own folder (day + total, nothing else).
-const spendFile = () => path.join(app.getPath('userData'), 'spend-today.json');
-const budget = new Budget(CAP_USD, {
-  store: {
-    load: () => JSON.parse(fs.readFileSync(spendFile(), 'utf8')),
-    save: (v) => { fs.mkdirSync(path.dirname(spendFile()), { recursive: true }); fs.writeFileSync(spendFile(), JSON.stringify(v)); },
-  },
-});
-const sessions = new Map();
-let projects = [];
+let projects = []; let spentUsd = 0; let pendingCards = 0;
 let mb = null; let animator = null; let openStartedAt = 0; let tuckTimer = null; let hotkeyOk = false;
 let activity = { hovered: false, typing: false, pinned: false };
 
@@ -56,15 +45,34 @@ const keychainHasKey = () => new Promise((resolve) => {
 });
 
 const send = (ev) => mb?.window?.webContents.send('event', ev);
-const pendingCards = () => [...sessions.values()].reduce((n, s) => n + s.broker.size, 0);
+
+// The helper's environment leaves out any API key in the app's own environment; each Claude Code
+// process gets its key from the Keychain only (engine/options.mjs).
+const helperEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_|^CLAUDE_CODE_/.test(k)));
+const link = createHelperLink({
+  fork: (entry) => utilityProcess.fork(entry, [], { serviceName: 'Menu bar chat helper', env: helperEnv() }),
+  entry: path.join(ROOT, 'engine', 'helper-process.mjs'),
+  boot: () => ({
+    projects, capUsd: CAP_USD, spendFile: path.join(app.getPath('userData'), 'spend-today.json'),
+    settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'], model: DEFAULT_MODEL },
+  }),
+  onReady: (m) => { spentUsd = m.spentUsd ?? spentUsd; },
+  onEvent,
+  onExit: () => {
+    pendingCards = 0; animator?.setState('error'); mb?.tray.setToolTip('Needs a look: the background helper stopped');
+    for (const p of projects) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Send your message again to restart it.' });
+  },
+});
 
 function onEvent(ev) {
-  send(ev);
-  if (ev.type === 'status' || ev.type === 'turn_done' || ev.type === 'error') {
-    const top = status.top();
-    mb?.tray.setToolTip(top.line);
-    animator?.setState(top.state);
+  if (!ev || typeof ev !== 'object') return;
+  if (ev.type === 'status') {
+    pendingCards = ev.pendingCards || 0;
+    mb?.tray.setToolTip(ev.line); animator?.setState(ev.state);
+    return;
   }
+  if (typeof ev.spentUsd === 'number') spentUsd = ev.spentUsd;
+  send(ev);
   if (ev.type === 'approval' && !mb.window?.isVisible()) notifyApproval(ev);
   if (ev.type === 'turn_done') scheduleTuck();
 }
@@ -80,7 +88,7 @@ function notifyApproval(ev) {
   n.on('click', () => mb.showWindow());
   n.on('action', (_e, index) => {
     if (index === 0) mb.showWindow();
-    else sessions.get(ev.project)?.answer(ev.card.id, 'deny'); // only Deny from a notification; Allow needs the card
+    else link.command({ type: 'answer', project: ev.project, id: ev.card.id, decision: 'deny' }); // only Deny from a notification; Allow needs the card
   });
   n.show();
   send({ type: 'notified', project: ev.project });
@@ -89,21 +97,9 @@ function notifyApproval(ev) {
 function scheduleTuck() {
   clearTimeout(tuckTimer);
   tuckTimer = setTimeout(() => {
-    if (!mb.window?.isVisible() || activity.hovered || activity.typing || activity.pinned || pendingCards() > 0) return;
+    if (!mb.window?.isVisible() || activity.hovered || activity.typing || activity.pinned || pendingCards > 0) return;
     mb.hideWindow();
   }, TUCK_AFTER_MS);
-}
-
-function sessionFor(name) {
-  const project = projects.find((p) => p.name === name);
-  if (!project) return null;
-  if (!sessions.has(name)) {
-    sessions.set(name, new ProjectSession({
-      project, sdk: { query }, emit: onEvent, status, budget,
-      settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'], model: DEFAULT_MODEL },
-    }));
-  }
-  return sessions.get(name);
 }
 
 function toggle(source) {
@@ -119,16 +115,20 @@ const fromOurWindow = (e) => e.senderFrame?.url === INDEX_URL;
 function wireIpc() {
   ipcMain.handle('init', async (e) => {
     if (!fromOurWindow(e)) return null;
+    await Promise.race([link.start(), new Promise((r) => setTimeout(r, 3000))]); // today's spend comes from the helper
     return {
       projects: projects.map(({ name, tag }) => ({ name, tag })),
       scratch: SCRATCH, keychainOk: await keychainHasKey(), hotkey: hotkeyOk ? 'Control+Option+Command+C' : null,
-      capUsd: CAP_USD, spentUsd: budget.spent, model: 'Sonnet', reducedMotion: Animator.reducedMotion(systemPreferences),
+      capUsd: CAP_USD, spentUsd, model: 'Sonnet', reducedMotion: Animator.reducedMotion(systemPreferences),
       versions: { app: app.getVersion(), electron: process.versions.electron, os: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim() },
     };
   });
-  ipcMain.on('send', (e, { project, text }) => { if (fromOurWindow(e) && typeof text === 'string' && text.trim()) sessionFor(project)?.send(text.slice(0, 20000)); });
-  ipcMain.on('answer', (e, { project, id, decision }) => { if (fromOurWindow(e)) sessionFor(project)?.answer(id, decision); });
-  ipcMain.on('stop', (e, { project }) => { if (fromOurWindow(e)) sessionFor(project)?.stop(); });
+  // Chat commands: checked here, then again in the helper, before anything acts on them.
+  ipcMain.handle('command', async (e, raw) => {
+    if (!fromOurWindow(e)) return { ok: false, error: 'not from this window' };
+    const v = validateCommand(raw);
+    return v.ok ? link.command(v.cmd) : { ok: false, error: v.error };
+  });
   ipcMain.on('hide', (e) => { if (fromOurWindow(e)) mb.hideWindow(); });
   ipcMain.on('fit', (e, wanted) => {
     if (!fromOurWindow(e) || !mb?.window || !Number.isFinite(wanted)) return;
@@ -157,11 +157,11 @@ app.whenReady().then(() => {
   // Before the window exists: menubar loads the page while it starts, and the page asks
   // for 'init' straight away.
   wireIpc();
+  link.start(); // warm: the helper is ready before the first message
   hotkeyOk = globalShortcut.register(HOTKEY, () => { if (mb) toggle('hotkey'); });
-  const iconPath = path.join(HERE, 'icons', 'idleTemplate.png');
   mb = menubar({
     index: INDEX_URL,
-    icon: nativeImage.createFromPath(iconPath),
+    icon: nativeImage.createFromPath(path.join(HERE, 'icons', 'idleTemplate.png')),
     tooltip: 'Ready',
     preloadWindow: true,
     showDockIcon: false,
@@ -190,6 +190,6 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  for (const s of sessions.values()) s.close(); // anything waiting is denied
+  link.stop(); // every session closes and anything waiting is denied
   animator?.stop();
 });

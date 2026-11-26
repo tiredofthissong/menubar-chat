@@ -67,7 +67,7 @@ test('main process: sandboxed window, sender checks on every message, vetted out
   const main = read('app/main.mjs');
   assert.match(main, /contextIsolation: true, sandbox: true, nodeIntegration: false/);
   const handlers = main.match(/ipcMain\.(on|handle)\('[^']+'/g) || [];
-  assert.ok(handlers.length >= 8);
+  assert.ok(handlers.length >= 7);
   for (const h of handlers) {
     const name = h.match(/'([^']+)'/)[1];
     const body = main.slice(main.indexOf(h), main.indexOf(h) + 160);

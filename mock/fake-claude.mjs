@@ -7,6 +7,8 @@
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const argValue = (args, name) => {
   const i = args.findIndex((a) => a === name || a.startsWith(name + '='));
@@ -23,7 +25,19 @@ export const SCENARIOS = {
   secret: [{ tool: 'Read', input: { file_path: '.env' } }],
   leak: [{ chunks: ['Your key is sk-ant-ab', 'cdef1234567890 ok\n'] }],
   hello: [{ say: 'Hello from the fake Claude.\n' }],
+  plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
+  sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
 };
+// Do an Edit for real (tests run in a temp folder) and report it the way Claude Code does.
+function applyEdit(cwd, input) {
+  const file = path.resolve(cwd, input.file_path);
+  let text; try { text = fs.readFileSync(file, 'utf8'); } catch { return { ok: false, why: 'File does not exist.' }; }
+  const lines = text.split('\n'); const i = lines.findIndex((l) => l.includes(input.old_string));
+  if (i < 0) return { ok: false, why: 'String to replace not found in file.' };
+  const after = lines[i].replace(input.old_string, input.new_string);
+  fs.writeFileSync(file, [...lines.slice(0, i), after, ...lines.slice(i + 1)].join('\n'));
+  return { ok: true, result: { filePath: file, structuredPatch: [{ oldStart: i + 1, oldLines: 1, newStart: i + 1, newLines: 1, lines: ['-' + lines[i], '+' + after] }] } };
+}
 const pick = (prompt) => SCENARIOS[Object.keys(SCENARIOS).find((k) => prompt.includes(`#${k}`)) || 'hello'];
 
 function deniedByRule(rules, name, input) {
@@ -106,7 +120,7 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey 
   }
 
   const usage = () => ({ input_tokens: 1200, output_tokens: 180, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
-  const assistant = (content) => write({ type: 'assistant', message: { id: 'msg_' + randomUUID().slice(0, 8), type: 'message', role: 'assistant', model: 'claude-mock', content, stop_reason: null, stop_sequence: null, usage: usage() }, parent_tool_use_id: null, ...base() });
+  const assistant = (content, parent = null) => write({ type: 'assistant', message: { id: 'msg_' + randomUUID().slice(0, 8), type: 'message', role: 'assistant', model: 'claude-mock', content, stop_reason: null, stop_sequence: null, usage: usage() }, parent_tool_use_id: parent, ...base() });
   const delta = (text) => write({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, parent_tool_use_id: null, ...base() });
 
   async function gate(name, input, toolUseId, step, signal) {
@@ -122,22 +136,25 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey 
     if (step.allowRule) return { ok: true };
     const r = await ask({ subtype: 'can_use_tool', tool_name: name, input, tool_use_id: toolUseId }, signal);
     const answer = r.subtype === 'success' ? r.response : { behavior: 'deny', message: r.error };
-    return answer?.behavior === 'allow' ? { ok: true } : { ok: false, why: answer?.message || 'Denied' };
+    if (answer?.behavior !== 'allow') return { ok: false, why: answer?.message || 'Denied' };
+    if (name === 'ExitPlanMode') mode = 'default'; // like Claude Code: an approved plan leaves plan mode
+    return name === 'Edit' ? applyEdit(cwd, input) : { ok: true };
   }
 
   async function runTurn(prompt, signal) {
-    write({ type: 'system', subtype: 'init', apiKeySource: keySource, claude_code_version: 'mock', cwd, tools: ['Read', 'Edit', 'Write', 'Bash'], mcp_servers: [], model: 'claude-mock', permissionMode: mode, slash_commands: [], output_style: 'default', skills: [], plugins: [], ...base() });
+    write({ type: 'system', subtype: 'init', apiKeySource: keySource, claude_code_version: 'mock', cwd, tools: ['Read', 'Edit', 'Write', 'Bash'], mcp_servers: [], model: 'claude-mock', permissionMode: mode, slash_commands: ['review', 'design-rules'], output_style: 'default', skills: [], plugins: [], ...base() });
     for (const step of pick(prompt)) {
       await sleep(delayMs, signal);
+      if (step.parent) { assistant([{ type: 'text', text: step.say }], step.parent); continue; }
       if (step.say) { delta(step.say); assistant([{ type: 'text', text: step.say }]); continue; }
       if (step.chunks) { for (const c of step.chunks) delta(c); assistant([{ type: 'text', text: step.chunks.join('') }]); continue; }
       const toolUseId = 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 20);
       assistant([{ type: 'tool_use', id: toolUseId, name: step.tool, input: step.input }]);
       const verdict = await gate(step.tool, step.input, toolUseId, step, signal);
-      write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...base() });
+      write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...(verdict.result ? { tool_use_result: verdict.result } : {}), ...base() });
     }
     cost += 0.01;
-    write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: {}, permission_denials: [], ...base() });
+    write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: { 'claude-mock': { contextWindow: 200000 } }, permission_denials: [], ...base() });
   }
 
   return proc;

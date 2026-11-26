@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkInit } from '../engine/init-check.mjs';
 import { buildQueryOptions, safeEnv, KEYCHAIN_SERVICE, WHY_RULE } from '../engine/options.mjs';
-import { explainToolCall, splitSteps } from '../engine/explain.mjs';
-import { StatusBoard, MAX_LINE } from '../engine/status.mjs';
-import { Budget } from '../engine/budget.mjs';
-import { redact, LineBuffer } from '../engine/redact.mjs';
+import { explainToolCall, splitSteps } from '../shared/explain.mjs';
+import { StatusBoard, MAX_LINE } from '../status/status.mjs';
+import { Budget } from '../usage/budget.mjs';
+import { redact } from '../shared/redact.mjs';
+import { translate, newScratch } from '../engine/translate.mjs';
 import { createInputQueue } from '../engine/input-queue.mjs';
 import { makePreToolUseHook } from '../policy/hook.mjs';
 import { MODES, START_MODE, isAllowedMode } from '../policy/modes.mjs';
@@ -121,9 +122,11 @@ test('redact: keys and tokens never show, even split across chunks', () => {
   for (const s of ['sk-ant-api03-abcdefghijklmnop', 'ghp_abcdefghijklmnopqrstuvwxyz0123456789', 'AKIAABCDEFGHIJKLMNOP', 'xoxb-1234-5678-abcdef']) {
     assert.doesNotMatch(redact(`key ${s} end`), new RegExp(s.slice(0, 8)));
   }
-  const lb = new LineBuffer();
-  assert.equal(lb.push('Your key is sk-ant-ab'), '');
-  const out = lb.push('cdef1234567890 ok\n');
+  // translate.mjs releases streamed text whole lines at a time, so redaction sees the whole key.
+  const st = newScratch();
+  const chunk = (text) => translate({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } }, st).events;
+  assert.deepEqual(chunk('Your key is sk-ant-ab'), []);
+  const out = chunk('cdef1234567890 ok\n').map((e) => redact(e.text)).join('');
   assert.doesNotMatch(out, /cdef1234567890/);
   assert.match(out, /ok/);
 });
@@ -144,4 +147,9 @@ test('hook: denies hard-rule calls in the SDK shape and passes the rest on', asy
   assert.deepEqual(blocked, ['work-publish']);
   assert.deepEqual(await hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } }), {});
   assert.deepEqual(await hook({ hook_event_name: 'PostToolUse' }), {});
+});
+
+test('a secret caught by two patterns is hidden once, and the line still reads', () => {
+  assert.equal(redact('GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz012345 refused'), 'GITHUB_TOKEN=[hidden secret] refused');
+  assert.equal(redact('ANTHROPIC_API_KEY=sk-ant-abcdefghijklmnop ok'), 'ANTHROPIC_API_KEY=[hidden secret] ok');
 });

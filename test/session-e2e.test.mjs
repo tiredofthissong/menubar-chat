@@ -1,22 +1,32 @@
-// End to end: the REAL Agent SDK talking to the fake Claude Code binary (mock/fake-claude.mjs).
-// No API key, no network, no cost.
+// End to end: the REAL Agent SDK talking to the fake Claude Code binary (mock/fake-claude.mjs),
+// through the helper (engine/helper.mjs), so every event leaves through publish() exactly as
+// it does in the app. No API key, no network, no cost.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { ProjectSession } from '../engine/session.mjs';
-import { StatusBoard } from '../engine/status.mjs';
-import { Budget } from '../engine/budget.mjs';
+import { createHelper } from '../engine/helper.mjs';
+import { Budget } from '../usage/budget.mjs';
 import { KEYCHAIN_SERVICE } from '../engine/options.mjs';
+import { silentLogger } from '../shared/log.mjs';
 import { createFakeClaude } from '../mock/fake-claude.mjs';
+import { tempProject } from './support.mjs';
 
 function harness({ tag = 'personal', keySource, cap = 5 } = {}) {
   const events = []; const waiters = [];
   const emit = (ev) => { events.push(ev); for (const w of [...waiters]) if (w.pred(ev)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(ev); } };
-  const status = new StatusBoard(); const budget = new Budget(cap);
-  const session = new ProjectSession({
-    project: { name: `${tag}-demo`, path: process.cwd(), tag }, sdk: { query }, emit, status, budget,
+  const budget = new Budget(cap); const dir = tempProject(); const name = `${tag}-demo`;
+  const helper = createHelper({
+    projects: [{ name, path: dir, tag }], sdk: { query }, budget, log: silentLogger, send: emit,
     settings: { keychainService: KEYCHAIN_SERVICE, hubPaths: ['~/claude-hub'], spawn: (o) => createFakeClaude(o, { keySource }) },
   });
+  const cmd = (type, f = {}) => helper.handleCommand({ type, project: name, ...f });
+  // The same calls the window makes, through the contract.
+  const session = {
+    send: (text) => cmd('send', { text }), answer: (id, decision) => cmd('answer', { id, decision }), stop: () => cmd('stop'),
+    setMode: (mode) => cmd('setMode', { mode }), undo: (changeId) => cmd('undo', { changeId }),
+    close: () => { helper.shutdown(); fs.rmSync(dir, { recursive: true, force: true }); },
+  };
   const next = (pred, ms = 8000) => {
     const seen = events.find(pred); if (seen) return Promise.resolve(seen);
     return new Promise((resolve, reject) => {
@@ -24,7 +34,8 @@ function harness({ tag = 'personal', keySource, cap = 5 } = {}) {
       setTimeout(() => reject(new Error(`timed out; saw: ${events.map((e) => e.type).join(',')}`)), ms).unref();
     });
   };
-  return { session, events, next, status, budget, of: (type) => events.filter((e) => e.type === type) };
+  const lastStatus = () => events.filter((e) => e.type === 'status').at(-1);
+  return { session, helper, cmd, dir, events, next, lastStatus, budget, of: (type) => events.filter((e) => e.type === type) };
 }
 
 test('a chained command arrives as ONE card that lists every step', async (t) => {
@@ -35,7 +46,8 @@ test('a chained command arrives as ONE card that lists every step', async (t) =>
   assert.equal(ap.card.steps.length, 3);
   assert.match(ap.card.plain, /Run 3 steps: download the latest changes; make a folder; copy files\./);
   assert.equal(ap.card.defaultChoice, 'deny');
-  assert.equal(h.status.top().state, 'waiting');
+  assert.equal(h.lastStatus().state, 'waiting');
+  assert.equal(h.lastStatus().pendingCards, 1);
   h.session.answer(ap.card.id, 'allow');
   const done = await h.next((e) => e.type === 'turn_done');
   assert.equal(done.approvals, 1);

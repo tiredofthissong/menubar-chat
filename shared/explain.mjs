@@ -67,6 +67,7 @@ export function explainToolCall(toolName, input = {}, cwd = '/') {
   }
   if (toolName === 'Edit' || toolName === 'MultiEdit') return { plain: `Change ${short(input.file_path, cwd)}.`, steps: [], danger: false };
   if (toolName === 'Write') return { plain: `Create or replace ${short(input.file_path, cwd)} (replacing a whole file is harder to undo).`, steps: [], danger: false };
+  if (toolName === 'ExitPlanMode') return { plain: 'The plan is ready. Start on it? Claude still asks before each change.', steps: [], danger: false };
   if (toolName === 'Read') return { plain: `Read ${short(input.file_path, cwd)}.`, steps: [], danger: false };
   return { plain: `Use ${toolName}.`, steps: [], danger: false };
 }

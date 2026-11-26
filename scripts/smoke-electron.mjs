@@ -14,6 +14,12 @@ app.whenReady().then(() => setTimeout(async () => {
     spend: document.getElementById('spend').textContent,
   })`);
   console.log('SMOKE ' + JSON.stringify(seen));
+  // The background helper: a command from the window goes through the app to the helper and back.
+  const roundTrip = await w.webContents.executeJavaScript(`(async () => {
+    const p = document.getElementById('project').value;
+    return { undo: await window.menubarChat.undo(p, 'no-such-change'), mode: await window.menubarChat.setMode(p, 'bypassPermissions') };
+  })()`);
+  console.log('SMOKE-HELPER ' + JSON.stringify(roundTrip));
   // A very tall card and a long conversation: the window should grow and the chat box stay in view.
   w.show(); await new Promise((r) => setTimeout(r, 300));
   const before = w.getBounds().height;

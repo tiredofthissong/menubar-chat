@@ -30,6 +30,17 @@ The most important screen in the app.
 - New messages keep you at the newest one only while you're already there. Scroll up to read back and you stay put; a **Jump to latest** button appears instead. Sending a message brings you back to the bottom.
 - If a trackpad or wheel turn doesn't move the conversation, the window moves it itself (backup in `scroll.js`).
 
+## Changes and modes (milestone 1)
+
+- **A change card per file change:** one plain sentence ("Changed 2 lines in notes.md. Why: fix the typo."), then the diff, then **Undo**. If Claude gave no reason, the card says so.
+- **Undo** puts the file back as it was, or removes a file Claude created. If the file changed since, it says so and changes nothing.
+- **The mode button** in the top bar reads **Ask me first** or **Plan first**. Plan first: Claude reads and plans, changes nothing, and asks before it starts; each change still gets its card.
+
+## Known gaps
+
+- Undo copies are kept in memory, so they're gone once the app quits.
+- Changes to files outside the project folder have no Undo.
+
 ## Not yet
 
 - The v1 chat window (milestone 2) gets its own layout pass, with the checklist panel removed.

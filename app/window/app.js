@@ -22,8 +22,11 @@
   const state = {
     projects: [], current: null, info: null,
     results: Object.fromEntries(CHECKS.map((c) => [c.id, { mark: null, auto: '' }])),
-    opens: [], logs: new Map(), bubble: new Map(), busy: new Set(), lastTry: new Map(), cards: new Map(),
+    opens: [], logs: new Map(), bubble: new Map(), busy: new Set(), lastTry: new Map(), cards: new Map(), modes: new Map(), undos: new Map(),
   };
+  const MODE = { default: ['Ask me first', 'Every change asks you first. Click for Plan first: Claude only reads and plans until you approve the plan.'],
+    plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan. Click to go back to Ask me first.'] };
+  const said = (r) => { if (r && r.ok === false) notice(r.error || r.text, true); };
 
   // ---- Notices ----
   function notice(text, bad) {
@@ -63,6 +66,20 @@
     if (project === state.current) followIfStuck();
   }
   const addLine = (project, text, cls = '') => { state.bubble.delete(project); add(project, el('div', `line ${cls}`.trim(), text)); };
+  // What changed and why, with Undo (refused if the file changed again since).
+  function addChange(project, ch) {
+    const row = el('div', 'line line-change'); row.append(el('span', '', ch.sentence));
+    if (ch.canUndo) {
+      const b = el('button', 'btn btn-small btn-quiet', 'Undo'); b.type = 'button';
+      b.addEventListener('click', () => api.undo(project, ch.id).then(said));
+      state.undos.set(ch.id, b); row.append(b);
+    }
+    state.bubble.delete(project); add(project, row);
+  }
+  function showMode() {
+    const m = state.modes.get(state.current) || 'default';
+    $('mode').textContent = MODE[m][0]; $('mode').title = MODE[m][1]; $('mode').setAttribute('aria-pressed', String(m === 'plan'));
+  }
 
   // ---- Approval cards ----
   function renderCard(project, card) {
@@ -83,8 +100,8 @@
     // Same look for both, and nothing pre-selected: a stray Enter can't approve.
     const deny = el('button', 'btn', 'Deny'); deny.type = 'button';
     const allow = el('button', 'btn', 'Allow once'); allow.type = 'button';
-    deny.addEventListener('click', () => api.answer(project, card.id, 'deny'));
-    allow.addEventListener('click', () => api.answer(project, card.id, 'allow'));
+    deny.addEventListener('click', () => api.answer(project, card.id, 'deny').then(said));
+    allow.addEventListener('click', () => api.answer(project, card.id, 'allow').then(said));
     row.append(deny, allow); c.append(row);
     state.cards.set(card.id, c);
     $('cards').append(c);
@@ -144,7 +161,7 @@
     const p = state.projects.find((x) => x.name === name);
     $('tag').textContent = p?.tag === 'personal' ? 'personal' : 'work';
     $('stop').disabled = !state.busy.has(name);
-    showLog();
+    showMode(); showLog();
   }
   function send() {
     const text = $('input').value.trim();
@@ -153,7 +170,7 @@
     state.bubble.delete(state.current);
     stick = true; // your own message always brings you back to the newest
     add(state.current, el('div', 'msg msg-you', text));
-    api.send(state.current, text);
+    api.send(state.current, text).then(said);
     state.busy.add(state.current); $('stop').disabled = false;
     $('input').value = ''; sendActivity();
   }
@@ -182,6 +199,16 @@
         if (/push/i.test(`${ev.rule} ${ev.plain}`)) setAuto('push', `push refused before any card (${ev.rule})`);
         break;
       case 'tool_failed': addLine(p, ev.text); break;
+      case 'hint': addLine(p, ev.text); break;
+      case 'change': addChange(p, ev); break;
+      case 'undo_result': {
+        const b = state.undos.get(ev.id); if (b && ev.ok) { b.disabled = true; b.textContent = 'Undone'; }
+        addLine(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
+      }
+      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); addLine(p, `Mode: ${ev.label}.`); break;
+      case 'usage':
+        $('spend').title = `Model: Sonnet. This chat: $${(ev.chatUsd ?? 0).toFixed(2)}${ev.contextPct == null ? '' : `, ${ev.contextPct}% of its memory used`}. Spending stops at the daily cap and starts over at midnight.`;
+        break;
       case 'why':
         addLine(p, ev.seen ? `Why: ${ev.why}` : 'No "Why:" line came before this change.', ev.seen ? 'line-why' : '');
         setAuto('why', ev.seen ? `Why line seen: "${ev.why.slice(0, 60)}"` : 'edit arrived with no Why line');
@@ -285,7 +312,11 @@
   $('input').addEventListener('input', sendActivity);
   $('input').addEventListener('blur', sendActivity);
   $('pin').addEventListener('change', sendActivity);
-  $('stop').addEventListener('click', () => state.current && api.stop(state.current));
+  $('stop').addEventListener('click', () => state.current && api.stop(state.current).then(said));
+  $('mode').addEventListener('click', () => {
+    if (!state.current) return;
+    api.setMode(state.current, (state.modes.get(state.current) || 'default') === 'plan' ? 'default' : 'plan').then(said);
+  });
   $('copy').addEventListener('click', () => { api.copy(resultsText()); notice('Results copied. Paste them in our chat.'); });
   $('save').addEventListener('click', async () => { const f = await api.saveResults(resultsText()); if (f) notice('Saved as proving-results.md in the app folder.'); });
   document.addEventListener('mouseenter', () => { hovered = true; sendActivity(); });

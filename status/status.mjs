@@ -1,7 +1,7 @@
 // status.mjs - the hover line and icon state, most urgent project first.
 // Rules: under 100 characters; never shows a secret; "waiting on you" can't be overwritten
 // while an approval card is open; says "(+1 more)" when another project is busy.
-import { redact } from './redact.mjs';
+import { redact } from '../shared/redact.mjs';
 
 export const STATES = ['idle', 'thinking', 'working', 'waiting', 'stopped', 'error'];
 const RANK = { waiting: 5, error: 4, working: 3, thinking: 2, stopped: 1, idle: 0 };
