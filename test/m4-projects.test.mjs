@@ -162,7 +162,7 @@ test('picking up a past chat sends its turns to the window, without "Next:" line
 
 test('window: one project button with a panel, Esc closes the panel first, usage in the panel', () => {
   const html = read('app/window/index.html'); const app = read('app/window/app.js'); const panel = read('app/window/panel.js');
-  assert.doesNotMatch(html, /<select/, 'the project picker is a button and a panel now');
+  assert.doesNotMatch(html, /<select id="project/, 'the project picker is a button and a panel now');
   assert.match(html, /id="project"[^>]*aria-controls="panel-projects"/); assert.match(html, /id="spend"[^>]*aria-controls="panel-usage"/);
   assert.match(app, /if \(Panel\.close\(\)\) return;[\s\S]*api\.hide\(\)/);
   assert.match(app, /case 'past': Log\.reset\(p\); Log\.past\(p/);

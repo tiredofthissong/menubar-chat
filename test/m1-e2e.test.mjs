@@ -91,7 +91,7 @@ test('Plan first: changes are refused by the mode, and approving the plan goes b
   assert.equal(h.of('error').length, 0, 'the next turn starts in the mode we expect');
 });
 
-test('only the two modes exist', async (t) => {
+test('only the three modes exist', async (t) => {
   const h = harness(); t.after(h.close);
   for (const m of ['acceptEdits', 'bypassPermissions', 'auto', 'dontAsk', 'Plan', '']) {
     const r = await h.cmd('setMode', { mode: m });

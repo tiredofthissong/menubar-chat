@@ -14,7 +14,11 @@
       <header class="bar">
         <button type="button" id="project" class="project-btn" aria-expanded="false" aria-controls="panel-projects" title="Switch project, pick up a past chat, work or personal">Project</button>
         <span id="tag" class="pill">work</span>
-        <button type="button" id="mode" class="pill pill-quiet mode-toggle" aria-pressed="false" title="Every change asks you first">Ask me first</button>
+        <select id="mode" class="pill pill-quiet mode-select" aria-label="Mode" title="Every change asks you first">
+          <option value="default">Ask me first</option>
+          <option value="plan">Plan first</option>
+          <option value="dev">Dev mode</option>
+        </select>
         <span class="spacer"></span>
         <button type="button" id="spend" class="meter meter-btn num" aria-expanded="false" aria-controls="panel-usage" aria-live="polite">$0.00 of $5 today</button>
       </header>

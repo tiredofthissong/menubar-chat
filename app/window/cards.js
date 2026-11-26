@@ -7,7 +7,8 @@
 // multiple-choice questions get a question card with one button per answer.
 'use strict';
 window.ChatCards = (() => {
-  const { el, button } = window.ChatDom;
+  const { el, button, copyButton } = window.ChatDom;
+  const FOLD_OVER = 3; // longer step lists fold up (Bromo, Nov 26); a list with a delete in it never does
 
   function steps(card) {
     const items = Array.isArray(card.items) && card.items.length > 1 ? card.items : null;
@@ -19,7 +20,9 @@ window.ChatCards = (() => {
       if (it.target) li.append(el('span', 'step-target', it.target));
       ol.append(li);
     }
-    return { ol, count: items.length };
+    if (items.length <= FOLD_OVER || items.some((it) => it.danger)) return { ol, count: items.length, open: true };
+    const d = el('details', 'card-fold'); d.append(el('summary', '', `Show all ${items.length} steps`), ol);
+    return { ol: d, count: items.length, open: false };
   }
 
   function exact(card, copy) {
@@ -47,7 +50,7 @@ window.ChatCards = (() => {
   function question(project, card, act) {
     const c = el('article', 'card card-question');
     c.setAttribute('aria-label', `Claude is asking you a question, in ${project}`);
-    c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
+    c.append(kicker(project, () => card.questions.map((q) => [q.question, ...q.options.map((o, i) => `${i + 1}. ${o.label}${o.note ? ` (${o.note})` : ''}`)].join('\n')).join('\n\n'), act));
     const qs = card.questions; const picks = qs.map(() => new Set());
     const quick = qs.length === 1 && qs[0].multiSelect !== true;
     const send = button('Send answers', 'btn', () => act.answer(`a:${picks.map((s) => [...s].sort().join(',')).join(';')}`));
@@ -92,16 +95,27 @@ window.ChatCards = (() => {
     return m;
   }
 
+  // The kicker line, with a copy button at its end that copies the whole card as plain text.
+  function kicker(project, text, act) {
+    const k = el('div', 'card-kicker'); k.append(el('span', '', `Claude is asking · ${project}`));
+    k.append(copyButton(text, act.copy)); return k;
+  }
+  function cardText(card, said) {
+    const out = [said, card.kindLabel && `${card.kindLabel}${card.where ? `: ${card.where}` : ''}`, card.what && `Why: ${card.reason || "Claude didn't say."}`];
+    (card.items || []).forEach((it, n) => { if ((card.items || []).length > 1) out.push(`${n + 1}. ${it.say}${it.target ? ` (${it.target})` : ''}`); });
+    if (card.command) out.push(`Command: ${card.command}`);
+    return out.filter(Boolean).join('\n');
+  }
+
   function render(project, card, act) {
     if (card.kind === 'question' && Array.isArray(card.questions)) return question(project, card, act);
     const danger = card.danger === true;
     const c = el('article', danger ? 'card danger' : 'card');
     c.setAttribute('aria-label', `Claude is asking you, in ${project}`);
-    c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
     const list = steps(card);
     // One plain line first. A chained command lists every step below it, so the line only counts them.
-    const said = card.what ? `Claude wants to ${card.what}${list ? ':' : '.'}` : (list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`));
-    c.append(el('p', 'card-ask', said));
+    const said = card.what ? `Claude wants to ${card.what}${list?.open ? ':' : '.'}` : (list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`));
+    c.append(kicker(project, () => cardText(card, said), act), el('p', 'card-ask', said));
     const mt = meta(card, said); if (mt) c.append(mt);
     if (card.what) c.append(el('p', card.reason ? 'card-why' : 'card-why muted', card.reason ? `Why: ${card.reason}` : 'Why: Claude didn\'t say. If that matters, Deny and ask.'));
     if (list) c.append(list.ol);

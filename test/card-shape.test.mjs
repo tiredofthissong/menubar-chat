@@ -8,7 +8,7 @@ import { describeTool, commandEffect, EFFECTS } from '../shared/describe.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
 import { createHelper } from '../engine/helper.mjs';
 import { Budget } from '../usage/budget.mjs';
-import { KEYCHAIN_SERVICE, WHY_RULE } from '../engine/options.mjs';
+import { KEYCHAIN_SERVICE, WHY_RULE, USER_RULE, buildQueryOptions } from '../engine/options.mjs';
 import { silentLogger } from '../shared/log.mjs';
 import { createFakeClaude } from '../mock/fake-claude.mjs';
 import { tempProject, collector } from './support.mjs';
@@ -40,6 +40,10 @@ test('a command\'s kind: only looks, uses the internet, deletes, or runs a progr
   assert.equal(commandEffect(['npm test']), 'runs');
   assert.equal(commandEffect(['ls'], true), 'deletes');
   assert.match(WHY_RULE, /command, web lookup/, 'Claude is asked for a Why: line before every kind of step');
+  assert.match(USER_RULE, /Never ask them to edit a file, run a command or open an editor themselves/, 'the app is instead of an editor');
+  assert.match(USER_RULE, /Before you call work done or suggest a demo, run the tests/, 'check before a demo');
+  const o = buildQueryOptions({ mode: 'default', project: { path: '/p', name: 'p' }, canUseTool: () => {}, preToolUseHook: () => {}, keychainService: KEYCHAIN_SERVICE });
+  assert.ok(o.systemPrompt.append.includes(USER_RULE));
 });
 
 function harness(t) {
@@ -78,5 +82,10 @@ test('window: one shape for every card, and an honest line when Claude gave no r
   assert.match(src, /`Claude wants to \$\{card\.what\}/);
   assert.match(src, /Why: Claude didn\\'t say\. If that matters, Deny and ask\./);
   assert.match(src, /card\.kindLabel/);
+  assert.match(src, /const FOLD_OVER = 3;/); assert.match(src, /items\.some\(\(it\) => it\.danger\)\) return \{ ol, count: items\.length, open: true \}/, 'a list with a delete never folds');
+  assert.match(src, /k\.append\(copyButton\(text, act\.copy\)\)/, 'every card has a copy button');
+  const log = fs.readFileSync(new URL('../app/window/log.js', import.meta.url), 'utf8');
+  assert.match(log, /copyButton\(\(\) => sources\.get\(b\)/, 'every reply has a copy button that copies what Claude wrote');
+  assert.match(fs.readFileSync(new URL('../app/window/app.css', import.meta.url), 'utf8'), /\.cards \{ user-select: text; \}/, 'card text can be selected');
   assert.doesNotMatch(src, /Use \$\{card\.toolName\}\.`\)\)\);\n\s*if \(list\)/, 'no bare tool name as the first line');
 });

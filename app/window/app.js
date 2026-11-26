@@ -8,8 +8,9 @@
 
   const state = { projects: [], current: null, busy: new Set(), modes: new Map(), cards: new Map(), chat: new Map(), spent: 0, cap: 5, model: 'Sonnet' };
   const MODE = {
-    default: ['Ask me first', 'Every change asks you first. Click for Plan first: Claude only reads and plans until you approve the plan.'],
-    plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan. Click to go back to Ask me first.'],
+    default: ['Ask me first', 'Every change and command asks you first.'],
+    plan: ['Plan first', 'Claude only reads and plans, then asks you to approve the plan.'],
+    dev: ['Dev mode', 'Claude goes ahead on steps inside this project folder. It still asks for anything outside it, deletes, the internet and system tools.'],
   };
   const said = (r) => { if (r && r.ok === false) notice(r.error || r.text, true); };
 
@@ -20,7 +21,7 @@
   }
   function showMode() {
     const m = state.modes.get(state.current) || 'default';
-    $('mode').textContent = MODE[m][0]; $('mode').title = MODE[m][1]; $('mode').setAttribute('aria-pressed', String(m === 'plan'));
+    $('mode').value = m; $('mode').title = MODE[m][1]; $('mode').classList.toggle('mode-on', m !== 'default');
   }
   function showSpend(spent, cap) {
     $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
@@ -60,7 +61,7 @@
   function openCard(project, card) {
     const node = Cards.render(project, card, {
       answer: (decision) => { Cards.settle(node); api.answer(project, card.id, decision).then(said); },
-      copy: (t) => { api.copy(t); notice('Command copied.'); },
+      copy: (t) => { api.copy(t); notice('Copied.'); },
       learn: (u) => api.openLearn(u).then(said),
     });
     node.hidden = project !== state.current;
@@ -96,7 +97,7 @@
       case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.reset(p); Log.line(p, 'New chat started.'); state.chat.delete(p); } break;
       case 'change': Log.change(p, ev, (id) => api.undo(p, id).then(said)); break;
       case 'undo_result': if (ev.ok) Log.undone(ev.id); Log.line(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
-      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); Log.line(p, `Mode: ${ev.label}.`); break;
+      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); Log.line(p, `Mode: ${ev.label}. ${MODE[ev.mode]?.[1] || ''}`.trim()); break;
       case 'why': if (!ev.seen) Log.line(p, 'No "Why:" line came before this change.'); break;
       case 'usage': state.chat.set(p, { chatUsd: ev.chatUsd, contextPct: ev.contextPct }); Panel.refresh(); break;
       case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd); break;
@@ -113,7 +114,7 @@
   }
 
   async function start() {
-    Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); } });
+    Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); }, copy: (t) => { api.copy(t); notice('Copied.'); } });
     Panel.init({
       api, notice, select: selectProject, setProjects, projects: () => state.projects, current: () => state.current,
       usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, ...(state.chat.get(state.current) || {}) }),
@@ -140,9 +141,9 @@
   $('input').addEventListener('input', activity);
   $('input').addEventListener('blur', activity);
   $('stop').addEventListener('click', () => state.current && api.stop(state.current).then(said));
-  $('mode').addEventListener('click', () => {
+  $('mode').addEventListener('change', () => {
     if (!state.current) return;
-    api.setMode(state.current, (state.modes.get(state.current) || 'default') === 'plan' ? 'default' : 'plan').then(said);
+    api.setMode(state.current, $('mode').value).then((r) => { said(r); if (r?.ok === false) showMode(); }); // a refused change puts the menu back
   });
   document.addEventListener('mouseenter', () => { hovered = true; activity(); });
   document.addEventListener('mouseleave', () => { hovered = false; activity(); });

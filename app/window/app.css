@@ -92,8 +92,8 @@ progress::-webkit-progress-value { background: var(--color-fg); border-radius: v
 .diff span { display: block; white-space: pre; }
 .diff-add { color: var(--color-fg); font-weight: var(--weight-semibold); }
 .diff-del { color: var(--color-muted); text-decoration: line-through; }
-.mode-toggle { cursor: pointer; font-family: inherit; height: 28px; } /* a control: 24px is the floor */
-.mode-toggle[aria-pressed="true"] { color: var(--color-fg); border-color: var(--color-border-strong); }
+.mode-select { cursor: pointer; font-family: inherit; height: 28px; padding-inline: var(--space-1); } /* a control: 24px is the floor */
+.mode-select.mode-on { color: var(--color-fg); border-color: var(--color-border-strong); }
 .empty { margin: auto; text-align: center; color: var(--color-muted); max-width: 40ch; display: flex; flex-direction: column; gap: var(--space-3); align-items: center; }
 .starters { display: flex; flex-direction: column; gap: var(--space-2); align-items: stretch; }
 .starters .btn { height: auto; min-height: 26px; padding-block: var(--space-1); white-space: normal; }
@@ -133,7 +133,16 @@ progress::-webkit-progress-value { background: var(--color-fg); border-radius: v
 .cards > * { flex-shrink: 0; } /* cards keep their own height; the list scrolls instead */
 .card { background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: var(--space-3); box-shadow: var(--shadow-2); }
 .card.danger { border-color: var(--color-danger); }
-.card-kicker { font-size: var(--text-xs); color: var(--color-muted); margin-bottom: var(--space-1); }
+.card-kicker { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-muted); margin-bottom: var(--space-1); }
+/* Copy: a small icon button at the end of a card's first line and under each reply */
+.btn.btn-icon { width: var(--control-sm); min-width: var(--control-sm); height: var(--control-sm); padding: 0; display: inline-flex; align-items: center; justify-content: center; border-color: transparent; background: transparent; color: var(--color-muted); }
+.btn.btn-icon:hover { color: var(--color-fg); background: var(--color-surface-2); }
+.msg-actions { display: flex; justify-content: flex-end; margin-top: var(--space-1); margin-bottom: calc(-1 * var(--space-1)); }
+.card-fold { margin-bottom: var(--space-2); }
+.card-fold > summary { cursor: pointer; font-size: var(--text-xs); color: var(--color-muted); }
+.card-fold[open] > summary { margin-bottom: var(--space-1); }
+.cards { user-select: text; }
+button, summary, .pill { user-select: none; }
 .card-ask { font-weight: var(--weight-semibold); line-height: var(--leading-normal); margin-bottom: var(--space-2); }
 .card-steps { margin: 0 0 var(--space-2); padding-left: var(--space-5); }
 .card-steps li + li { margin-top: var(--space-1); }

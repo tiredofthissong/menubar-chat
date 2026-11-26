@@ -2,14 +2,15 @@
 
 A small Mac menu bar window for working with Claude Code without the Terminal. Every change asks you first, work projects can't push anywhere, and it runs on its own separately billed API key.
 
-**Where it stands:** milestones 1 to 5 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes; the window is the v1 chat window with plain approval cards and next-step buttons; it behaves like a menu bar app (opens fast, tucks itself away); it knows your project folders, their past chats, Work or Personal, and what you've spent; and every card teaches one plain line with a checked link to learn more. It is not the packaged app yet.
+**Where it stands:** milestones 1 to 5 of v1 are in. The engine runs in a background helper with change cards, Undo and three modes; the window is the v1 chat window with plain approval cards and next-step buttons; it behaves like a menu bar app (opens fast, tucks itself away); it knows your project folders, their past chats, Work or Personal, and what you've spent; and every card teaches one plain line with a checked link to learn more. It is not the packaged app yet.
 
 ## What's real and what isn't yet
 
 | Part | State |
 |---|---|
 | Engine: one Claude Code session per project, through the official Claude Agent SDK, in a background helper the window talks to over Electron's own messaging (no network port) | Real, tested |
-| Two modes: **Ask me first** (default) and **Plan first**. Click the mode button to switch | Real, tested |
+| Three modes, picked from the menu next to the project: **Ask me first** (default), **Plan first**, and **Dev mode**, where Claude goes ahead on steps inside the project folder and still asks for anything outside it, deletes, the internet and system tools | Real, tested |
+| Copy: a copy button on every card and every reply, and card text you can select | Real, tested |
 | Change cards: every file change shows one plain sentence, Claude's reason, the change itself one click away, and an **Undo** button | Real, tested |
 | One chat box, no Terminal: pasted Terminal lines become one command Claude runs after you allow it; `claude ...`, `!cmd` and mistyped /commands get a one-line fix | Real, tested |
 | Delete cards are red and offer **Move to Trash instead** (the delete never runs; Claude asks again to move the files to your Trash) | Real, tested |
@@ -76,14 +77,14 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 - **Nothing private in the window.** Everything the helper sends goes out one door, which blanks keys and tokens, even when split across two pieces of text. The log never holds what you typed or file text, only its length.
 - **Checked twice.** Every command from the window is checked by the app and again by the helper. Anything unexpected is refused, never guessed at.
 - **Undo never writes over newer work.** If a file changed after Claude's edit, Undo says so and leaves it alone. Files outside the project folder get no Undo.
-- **Only two modes.** "Accept edits", "auto" and "bypass" are left out on purpose: they let changes through without a card.
+- **Only three modes.** "Accept edits", "auto" and "bypass" are left out on purpose: they let changes through without a card, deletes included. **Dev mode** is the app's own: Claude Code still asks for everything, and the app goes ahead only on steps that stay in the project folder. A script Claude runs there can still do what any program can, so Dev mode trusts the code in that folder.
 
 ## Layout
 
 ```
 app/       the menu bar shell, the window, and the link to the background helper
 engine/    the background helper: sessions, the one SDK reader (translate), one exit (publish)
-policy/    the hard rules, the hook, approvals, the two modes
+policy/    the hard rules, the hook, approvals, the three modes and Dev mode's folder check
 changes/   change cards and Undo
 usage/     the daily cap and this chat's cost and context meter
 status/    the hover line

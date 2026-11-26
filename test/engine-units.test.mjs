@@ -23,8 +23,8 @@ test('init check: only the app key and the asked mode pass', () => {
   assert.equal(checkInit({ apiKeySource: 'apiKeyHelper', permissionMode: 'bypassPermissions' }, 'default').code, 'wrong-mode');
 });
 
-test('modes: only "Ask me first" and "Plan first"', () => {
-  assert.deepEqual(Object.keys(MODES), ['default', 'plan']);
+test('modes: only "Ask me first", "Plan first" and the app\'s own Dev mode', () => {
+  assert.deepEqual(Object.keys(MODES), ['default', 'plan', 'dev']);
   assert.equal(START_MODE, 'default');
   for (const m of ['acceptEdits', 'bypassPermissions', 'dontAsk', 'auto', '', undefined]) assert.equal(isAllowedMode(m), false);
 });

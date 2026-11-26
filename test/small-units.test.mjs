@@ -52,8 +52,8 @@ test('log: what you typed and file text are never written, only their length; se
   assert.doesNotThrow(() => createLogger({ sink: () => { throw new Error('disk full'); } }).error('a', 'b'));
 });
 
-test('modes: only Ask me first and Plan first, starting in Ask me first', () => {
-  assert.deepEqual(Object.keys(MODES), ['default', 'plan']);
+test('modes: only Ask me first, Plan first and Dev mode, starting in Ask me first', () => {
+  assert.deepEqual(Object.keys(MODES), ['default', 'plan', 'dev']);
   assert.equal(START_MODE, 'default');
   for (const m of ['acceptEdits', 'bypassPermissions', 'auto', 'dontAsk', 'toString', '__proto__', null, 1]) assert.equal(isAllowedMode(m), false, String(m));
   assert.deepEqual(requestMode('plan'), { ok: true, mode: 'plan', label: 'Plan first' });

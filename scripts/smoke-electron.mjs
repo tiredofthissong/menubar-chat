@@ -87,6 +87,16 @@ app.whenReady().then(() => setTimeout(async () => {
     await w.webContents.executeJavaScript(`document.querySelector('.card').scrollIntoView({ block: 'start' })`); await new Promise((r) => setTimeout(r, 300));
     fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-card.png'), (await w.webContents.capturePage()).toPNG());
   }
+  // A long list of steps folds up; copy buttons on cards and replies; the mode menu has three modes.
+  say({ type: 'approval', card: { id: 'smoke-long', toolName: 'Bash', defaultChoice: 'deny', ...explainToolCall('Bash', { command: 'npm test && node a.js && node b.js && git add . && git status' }), reason: 'check the garden app before the demo.' } });
+  say({ type: 'text', text: 'Here is the **plan**.\n' });
+  await new Promise((r) => setTimeout(r, 300));
+  const fold = await w.webContents.executeJavaScript(`(() => { const c = [...document.querySelectorAll('.card')].at(-1); const d = c.querySelector('.card-fold'); return {
+    ask: c.querySelector('.card-ask').textContent, folded: Boolean(d) && !d.open, summary: d?.querySelector('summary').textContent,
+    cardCopy: Boolean(c.querySelector('.card-kicker .copy-btn[aria-label="Copy"]')), replyCopy: Boolean([...document.querySelectorAll('.msg-claude')].at(-1)?.querySelector('.copy-btn')),
+    selectable: getComputedStyle(c.querySelector('.card-ask')).userSelect, modes: [...document.querySelectorAll('#mode option')].map((o) => o.textContent) }; })()`);
+  console.log('SMOKE-FOLD ' + JSON.stringify(fold));
+  if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); await w.webContents.executeJavaScript(`[...document.querySelectorAll('.card')].at(-1).scrollIntoView({ block: 'start' })`); await new Promise((r) => setTimeout(r, 300)); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-fold.png'), (await w.webContents.capturePage()).toPNG()); }
   // Milestone 3: a reply's next steps become buttons, and opening the window puts the cursor in the chat box.
   say({ type: 'text', text: 'I fixed the typo.\n' }); say({ type: 'suggestions', items: ['Run the tests', 'Show me what changed'] });
   say({ type: 'opened', ms: 40, source: 'icon' });

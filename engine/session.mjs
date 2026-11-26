@@ -8,7 +8,8 @@ import { ApprovalBroker } from '../policy/approvals.mjs';
 import { makePreToolUseHook } from '../policy/hook.mjs';
 import { checkToolCall } from '../policy/rules.mjs';
 import { questionCard, MALFORMED } from '../policy/questions.mjs';
-import { START_MODE, requestMode, MODES } from '../policy/modes.mjs';
+import { START_MODE, requestMode, MODES, claudeCodeMode } from '../policy/modes.mjs';
+import { devModeAllows } from '../policy/devmode.mjs';
 import { ChangeStore } from '../changes/changes.mjs';
 import { createMeter } from '../usage/meter.mjs';
 import { buildQueryOptions } from './options.mjs';
@@ -46,13 +47,14 @@ export class ProjectSession {
   cards() { this.status.setPendingCards(this.project.name, this.broker.size); this.emit(event('status')); }
   setStatus(state, detail) { this.status.set(this.project.name, state, detail); this.emit(event('status')); }
 
-  /** canUseTool: the hard rules again (second line), then the person. */
+  /** canUseTool: the hard rules again (second line), then Dev mode's own folder check, then the person. */
   canUseTool = async (toolName, input, opts) => {
     const verdict = checkToolCall({ project: this.project, hubPaths: this.settings.hubPaths }, toolName, input);
     if (verdict.decision === 'deny') return { behavior: 'deny', message: verdict.plain, toolUseID: opts?.toolUseID };
     const asks = toolName === 'AskUserQuestion' ? questionCard(input) : null; // a question gets a card you tap
     if (toolName === 'AskUserQuestion' && !asks) return { behavior: 'deny', message: MALFORMED, toolUseID: opts?.toolUseID };
     const card = asks || explainToolCall(toolName, input, this.project.path);
+    if (!asks && this.mode === 'dev' && devModeAllows(toolName, input, this.project.path, card)) return { behavior: 'allow', updatedInput: input, toolUseID: opts?.toolUseID };
     if (!asks) card.reason = (await whyFor(this.scratch, opts?.toolUseID)) || card.reason; // Claude's own "Why:" line first
     const answer = await this.broker.ask(toolName, input, opts, asks || { ...card, learn: this.learn.pick(toolName, input, card.danger) });
     // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
@@ -100,7 +102,7 @@ export class ProjectSession {
   onMessage(m) {
     const { events, facts } = translate(m, this.scratch);
     if (facts.init) {
-      const verdict = checkInit(facts.init, this.mode);
+      const verdict = checkInit(facts.init, claudeCodeMode(this.mode));
       if (!verdict.ok) { this.emit(event('error', { code: verdict.code, text: verdict.text })); this.setStatus('error', 'stopped for safety'); this.close(); return; }
       const fresh = this.sessionId !== facts.init.sessionId;
       this.sessionId = facts.init.sessionId; this.slashCommands = facts.init.slashCommands;
@@ -168,7 +170,7 @@ export class ProjectSession {
     const was = this.mode;
     this.mode = r.mode; // set first, so a start frame that arrives meanwhile matches
     if (r.mode !== was && this.q) {
-      try { await this.q.setPermissionMode(r.mode); } catch { this.mode = was; return { ok: false, text: "Claude didn't take the new mode, so it stays as it was." }; }
+      try { if (claudeCodeMode(r.mode) !== claudeCodeMode(was)) await this.q.setPermissionMode(claudeCodeMode(r.mode)); } catch { this.mode = was; return { ok: false, text: "Claude didn't take the new mode, so it stays as it was." }; }
     }
     this.noteMode(r.mode);
     return r;

@@ -3,9 +3,9 @@
 // Plain script. Text goes in with textContent; markdown.js builds elements, never HTML.
 'use strict';
 window.ChatLog = (() => {
-  const { $, el, button } = window.ChatDom;
+  const { $, el, button, copyButton } = window.ChatDom;
   const S = window.ChatScroll; const MD = window.ChatMarkdown;
-  const EMPTY = 'Ask Claude to do something in this project, in your own words. Anything that changes a file or runs a command asks you first. Pasted Terminal lines work too.';
+  const EMPTY = 'Ask Claude to do something in this project, in your own words. Anything that changes a file or runs a command asks you first, except inside this folder in Dev mode. Pasted Terminal lines work too.';
   const STARTERS = ['Explain what this project does, in plain words.', 'Plan a small improvement first, without changing anything.', 'What should I work on next here?'];
 
   const logs = new Map(); const bubble = new Map(); const sources = new WeakMap(); const undos = new Map();
@@ -32,12 +32,18 @@ window.ChatLog = (() => {
     if (project === current) follow();
   }
 
+  // Claude's reply: the Markdown, and a copy button that copies the reply as Claude wrote it.
+  function claudeBubble(src) {
+    const b = el('div', 'msg msg-claude'); const body = el('div', 'md'); sources.set(b, src);
+    const row = el('div', 'msg-actions'); row.append(copyButton(() => sources.get(b), (t) => copy?.(t)));
+    b.append(body, row); body.append(MD.render(src, document)); return b;
+  }
   // Claude's reply arrives a line or so at a time: keep the raw text and redraw the bubble.
   function text(project, t) {
     let b = bubble.get(project);
-    if (!b) { b = el('div', 'msg msg-claude md'); sources.set(b, ''); bubble.set(project, b); add(project, b); }
+    if (!b) { b = claudeBubble(''); bubble.set(project, b); add(project, b); }
     sources.set(b, sources.get(b) + t);
-    b.replaceChildren(MD.render(sources.get(b), document));
+    b.firstChild.replaceChildren(MD.render(sources.get(b), document));
     if (project === current) follow();
   }
   const endReply = (project) => bubble.delete(project);
@@ -63,7 +69,7 @@ window.ChatLog = (() => {
   function past(project, turns) {
     for (const t of turns) {
       if (t.who === 'you') add(project, el('div', 'msg msg-you', t.text));
-      else { const b = el('div', 'msg msg-claude md'); b.append(MD.render(t.text, document)); add(project, b); }
+      else add(project, claudeBubble(String(t.text ?? '')));
     }
   }
 
@@ -102,7 +108,7 @@ window.ChatLog = (() => {
   function undone(id) { const b = undos.get(id); if (b) { b.disabled = true; b.textContent = 'Undone'; } }
 
   // Window size: ask for the height the conversation and cards need, so the chat box never gets cut off.
-  let api = null; let fill = null; let queued = false; const sizeChanged = S.makeSizeGate();
+  let api = null; let fill = null; let copy = null; let queued = false; const sizeChanged = S.makeSizeGate();
   function fit() {
     if (queued || !api) return; queued = true;
     requestAnimationFrame(() => {
@@ -118,7 +124,7 @@ window.ChatLog = (() => {
   }
 
   function init(bridge, opts = {}) {
-    api = bridge; fill = opts.fill || null;
+    api = bridge; fill = opts.fill || null; copy = opts.copy || null;
     const log = $('log');
     new ResizeObserver(() => { if (stick) toBottom(); }).observe(log);
     // Reading back: a scroll away from the bottom stops the follow; a wheel turn that didn't move
