@@ -4,6 +4,7 @@ import { app, BrowserWindow } from 'electron';
 import '../app/main.mjs';
 import { learnFor } from '../shared/learn.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
+import { mergeCards } from '../policy/grouping.mjs';
 
 app.whenReady().then(() => setTimeout(async () => {
   const w = BrowserWindow.getAllWindows()[0];
@@ -98,11 +99,13 @@ app.whenReady().then(() => setTimeout(async () => {
   console.log('SMOKE-FOLD ' + JSON.stringify(fold));
   if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); await w.webContents.executeJavaScript(`[...document.querySelectorAll('.card')].at(-1).scrollIntoView({ block: 'start' })`); await new Promise((r) => setTimeout(r, 300)); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-fold.png'), (await w.webContents.capturePage()).toPNG()); }
   // Dev mode: a web lookup offers Allow for an hour; a look outside the folder says so.
-  say({ type: 'approval', card: { id: 'smoke-web', toolName: 'WebSearch', defaultChoice: 'deny', hour: true, ...explainToolCall('WebSearch', { query: 'plants that grow in shade' }), reason: 'you asked which plants like shade.' } });
+  // Three searches asked together: one card (Bromo, Nov 26).
+  const searches = ['plants that grow in shade', 'shade perennials extension service', 'hostas ferns astilbe'].map((query) => ({ toolName: 'WebSearch', card: { ...explainToolCall('WebSearch', { query }), hour: true, reason: 'you asked which plants like shade.' } }));
+  say({ type: 'approval', card: { id: 'smoke-web', defaultChoice: 'deny', ...mergeCards(searches), hour: true } });
   say({ type: 'approval', card: { id: 'smoke-out', toolName: 'Bash', defaultChoice: 'deny', ...explainToolCall('Bash', { command: 'ls ..' }), kindLabel: 'Only looks, outside this project', reason: 'you asked what sits next to this project.' } });
   await new Promise((r) => setTimeout(r, 300));
   const web = await w.webContents.executeJavaScript(`(() => { const cs = [...document.querySelectorAll('.card')]; const [a, b] = cs.slice(-2); return {
-    webButtons: [...a.querySelectorAll('.card-actions button')].map((x) => x.textContent), outsidePill: b.querySelector('.card-meta')?.textContent }; })()`);
+    webButtons: [...a.querySelectorAll('.card-actions button')].map((x) => x.textContent), webAsk: a.querySelector('.card-ask').textContent, webSteps: a.querySelectorAll('.card-steps li').length, webWhy: a.querySelector('.card-why')?.textContent, outsidePill: b.querySelector('.card-meta')?.textContent }; })()`);
   console.log('SMOKE-WEB ' + JSON.stringify(web));
   if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); await w.webContents.executeJavaScript(`[...document.querySelectorAll('.card')].at(-2).scrollIntoView({ block: 'start' })`); await new Promise((r) => setTimeout(r, 300)); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-web.png'), (await w.webContents.capturePage()).toPNG()); }
   // Milestone 3: a reply's next steps become buttons, and opening the window puts the cursor in the chat box.

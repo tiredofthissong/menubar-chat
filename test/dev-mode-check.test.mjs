@@ -62,14 +62,20 @@ test('the web pass: an hour, Dev mode only, web lookups only, and only on a card
   return plain.then((r) => { assert.equal(r.behavior, 'deny', 'allow_hour on a card without the button is a no'); assert.equal(hours, 0); });
 });
 
-test('Allow for an hour also allows the web lookups already waiting, and nothing else (Bromo, Nov 26)', async () => {
-  let hours = 0; const b = new ApprovalBroker({ onOpen: () => {}, onClose: () => {}, onHour: () => { hours++; return 'ok'; }, timeoutMs: 0 });
-  const [one, two, three] = [1, 2, 3].map(() => b.ask('WebSearch', {}, {}, { hour: true }));
-  const install = b.ask('Bash', {}, {}, {});
-  b.answer([...b.pending.keys()][1], 'allow_hour');
-  for (const r of await Promise.all([one, two, three])) assert.equal(r.behavior, 'allow');
+test('web lookups asked together share one card; Allow for an hour covers them, and nothing else (Bromo, Nov 26)', async () => {
+  let hours = 0; const opened = []; const closed = [];
+  const b = new ApprovalBroker({ onOpen: (c) => opened.push(c), onClose: (...a) => closed.push(a), onHour: () => { hours++; return 'ok'; }, timeoutMs: 0 });
+  const web = (q) => b.ask('WebSearch', { query: q }, {}, { what: `search the web for "${q}"`, kindLabel: 'Uses the internet', effect: 'internet', hour: true });
+  const searches = ['shade plants', 'shade perennials', 'hostas'].map(web);
+  const install = b.ask('Bash', { command: 'npm install x' }, {}, { what: 'run a command to install packages', kindLabel: 'Uses the internet', effect: 'internet' });
+  assert.equal(b.size, 2, 'one card for the three searches, one for the install');
+  const card = opened.filter((c) => !closed.some(([id]) => id === c.id)).find((c) => c.hour);
+  assert.equal(card.what, 'search the web 3 times'); assert.equal(card.items.length, 3);
+  assert.equal(b.answer(opened[0].id, 'allow'), false, 'the card from before the others joined no longer answers');
+  b.answer(card.id, 'allow_hour');
+  for (const r of await Promise.all(searches)) assert.equal(r.behavior, 'allow');
   assert.equal(hours, 1, 'one pass, not three'); assert.equal(b.size, 1, 'the install card still waits');
-  b.answer([...b.pending.keys()][0], 'deny'); assert.equal((await install).behavior, 'deny');
+  b.denyAll('done'); assert.equal((await install).behavior, 'deny');
 });
 
 test('the hook waits as long as a card does', () => {

@@ -26,6 +26,8 @@ export const SCENARIOS = {
   leak: [{ chunks: ['Your key is sk-ant-ab', 'cdef1234567890 ok\n'] }],
   hello: [{ say: 'Hello from the fake Claude.\n' }],
   web: [{ say: 'Why: you asked which plants need shade.\n' }, { tool: 'WebFetch', input: { url: 'https://example.org/shade-plants', prompt: 'List shade plants' } }],
+  // Like Claude: several searches in one go, each asking at the same moment.
+  searches: [{ say: 'Why: you asked which plants grow in shade.\n' }, { together: ['best shade plants', 'shade perennials', 'hostas ferns astilbe'].map((query) => ({ tool: 'WebSearch', input: { query } })) }],
   peek: [{ say: 'Why: you asked what sits next to this project.\n' }, { tool: 'Bash', input: { command: 'ls ..' }, readOnly: true }],
   lookhere: [{ tool: 'Bash', input: { command: 'ls -la' }, readOnly: true }],
   quoted: [{ tool: 'Bash', input: { command: 'echo "=== open questions ===" && cat notes.txt' } }],
@@ -166,10 +168,11 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
       if (step.parent) { assistant([{ type: 'text', text: step.say }], step.parent); continue; }
       if (step.say) { delta(step.say); assistant([{ type: 'text', text: step.say }]); continue; }
       if (step.chunks) { for (const c of step.chunks) delta(c); assistant([{ type: 'text', text: step.chunks.join('') }]); continue; }
-      const toolUseId = 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 20);
-      assistant([{ type: 'tool_use', id: toolUseId, name: step.tool, input: step.input }]);
-      const verdict = await gate(step.tool, step.input, toolUseId, step, signal);
-      write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...(verdict.result ? { tool_use_result: verdict.result } : {}), ...base() });
+      const group = step.together || [step];
+      const ids = group.map(() => 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 20));
+      assistant(group.map((s, i) => ({ type: 'tool_use', id: ids[i], name: s.tool, input: s.input })));
+      const verdicts = await Promise.all(group.map((s, i) => gate(s.tool, s.input, ids[i], s, signal)));
+      verdicts.forEach((verdict, i) => write({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ids[i], content: verdict.ok ? 'done' : verdict.why, is_error: !verdict.ok }] }, parent_tool_use_id: null, ...(verdict.result ? { tool_use_result: verdict.result } : {}), ...base() }));
     }
     cost += 0.01;
     write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: { 'claude-mock': { contextWindow: 200000 } }, permission_denials: [], ...base() });

@@ -82,7 +82,7 @@ function onEvent(ev) {
   }
   if (typeof ev.spentUsd === 'number') spentUsd = ev.spentUsd;
   send(ev);
-  if (ev.type === 'approval') { learning?.record(ev); if (!mb.window?.isVisible()) notifyApproval(ev); }
+  if (ev.type === 'approval') { if (!ev.card?.regrouped) learning?.record(ev); if (!mb.window?.isVisible()) notifyApproval(ev); }
   if (ev.type === 'approval_closed') { notices.get(ev.id)?.close(); notices.delete(ev.id); }
   if (ev.type === 'turn_done') tuck.replied();
 }

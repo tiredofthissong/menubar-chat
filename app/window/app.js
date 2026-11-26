@@ -88,7 +88,7 @@
       case 'text': Log.text(p, ev.text); break;
       case 'tool': Log.line(p, ev.line); break;
       case 'approval': openCard(p, ev.card); break;
-      case 'approval_closed': closeCard(ev.id); Log.line(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.')); break;
+      case 'approval_closed': closeCard(ev.id); if (ev.decision === 'merged') break; Log.line(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.')); break;
       case 'blocked': Log.line(p, `Blocked: ${ev.plain}`, 'line-blocked'); break;
       case 'tool_failed': Log.line(p, ev.text); break;
       case 'hint': hint(p, ev); break;

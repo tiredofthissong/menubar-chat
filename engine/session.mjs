@@ -34,10 +34,10 @@ export class ProjectSession {
     this.approvals = 0; this.next = []; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
     this.permit = createPermit(this, { now: settings.now });
     this.broker = new ApprovalBroker({
-      timeoutMs: settings.approvalTimeoutMs, onHour: () => this.permit.onHour(),
-      onOpen: (card) => { this.approvals++; this.cards(); this.emit(event('approval', { card })); },
-      onClose: (id, decision, why, toolUseID) => {
-        if (decision === 'deny' && toolUseID) { this.explained.add(toolUseID); this.changes.forget(toolUseID); }
+      timeoutMs: settings.approvalTimeoutMs, gatherMs: settings.gatherMs ?? 120, onHour: () => this.permit.onHour(),
+      onOpen: (card, info) => { if (!info?.again) this.approvals++; this.cards(); this.emit(event('approval', { card })); },
+      onClose: (id, decision, why, toolUseIDs = []) => {
+        if (decision === 'deny') for (const t of toolUseIDs) { this.explained.add(t); this.changes.forget(t); }
         // Claude gets the long reason; the window gets a short one.
         const said = why.startsWith('You chose Move to Trash') ? 'You chose Move to Trash instead.' : why;
         this.cards(); this.emit(event('approval_closed', { id, decision, why: said }));

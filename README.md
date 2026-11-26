@@ -78,6 +78,7 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 - **Checked twice.** Every command from the window is checked by the app and again by the helper. Anything unexpected is refused, never guessed at.
 - **Undo never writes over newer work.** If a file changed after Claude's edit, Undo says so and leaves it alone. Files outside the project folder get no Undo.
 - **Only three modes.** "Accept edits", "auto" and "bypass" are left out on purpose: they let changes through without a card, deletes included. **Dev mode** is the app's own: Claude Code still asks for everything, and the app goes ahead only on steps that stay in the project folder. A script Claude runs there can still do what any program can, so Dev mode trusts the code in that folder.
+- **One card for steps of one kind asked together.** Three web searches at once are one card that lists all three, with one answer. Edits share a card with edits, deletes with deletes; a delete never rides along with anything else, and a question always gets its own card. A step that joins later replaces the card with a new one, so your answer only covers the steps you saw.
 - **A look outside the folder always asks, in every mode.** Claude Code runs its own read-only commands (ls, cat, find) without asking anyone, wherever they point, so the app's hook puts a card up itself when one reaches outside the project folder.
 
 ## Layout
@@ -85,7 +86,7 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 ```
 app/       the menu bar shell, the window, and the link to the background helper
 engine/    the background helper: sessions, the one SDK reader (translate), one exit (publish)
-policy/    the hard rules, the hook, approvals, the three modes, Dev mode's folder check and the web pass
+policy/    the hard rules, the hook, approvals, the three modes, Dev mode's folder check, the web pass and which steps share a card
 changes/   change cards and Undo
 usage/     the daily cap and this chat's cost and context meter
 status/    the hover line

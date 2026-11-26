@@ -66,9 +66,12 @@ export function translate(m, st) {
       if (b.type !== 'tool_use') continue;
       const line = explainToolCall(b.name, b.input, st.cwd).plain;
       events.push(event('tool', { id: b.id, tool: b.name, line }));
-      const why = st.textSinceTool.match(WHY)?.[1]?.trim() || null;
+      // Steps asked for together (no words, no results between them) share the one "Why:" line.
+      const own = st.textSinceTool.match(WHY)?.[1]?.trim() || null; // an edit still needs its own (the "why" event)
+      const why = own || (st.textSinceTool.trim() ? null : st.lastWhy || null);
+      st.lastWhy = why;
       if (why) st.whyByTool.set(b.id, why); // the approval card shows it as Claude's reason
-      if (EDIT_TOOLS.has(b.name)) events.push(event('why', { seen: Boolean(why), why, line }));
+      if (EDIT_TOOLS.has(b.name)) events.push(event('why', { seen: Boolean(own), why: own, line }));
       st.textSinceTool = '';
       facts.toolStarted = line;
     }
@@ -77,6 +80,7 @@ export function translate(m, st) {
     if (u) facts.requestTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
   }
   if (m?.type === 'user' && Array.isArray(m.message?.content)) {
+    st.lastWhy = null; // a result came back, so the next step needs its own reason
     for (const b of m.message.content) {
       if (b.type !== 'tool_result') continue;
       (facts.toolResults ||= []).push({

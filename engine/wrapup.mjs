@@ -14,7 +14,7 @@ export function createChatRecord() {
     ask(text) { if (r.asks.length < 5) r.asks.push(clip(text, 120)); },
     note(ev) {
       if (ev.type === 'change' && r.changes.length < 12) r.changes.push(clip(ev.sentence, 160));
-      else if (ev.type === 'approval_closed') { if (ev.decision === 'allow') r.allowed++; else r.denied++; }
+      else if (ev.type === 'approval_closed' && ev.decision !== 'merged') { if (ev.decision === 'allow') r.allowed++; else r.denied++; }
       else if (ev.type === 'blocked') r.blocked++;
       else if (ev.type === 'turn_done') r.costUsd += Number(ev.costUsd) || 0;
       else if (ev.type === 'suggestions') r.next = (ev.items || []).slice(0, 3).map((x) => clip(x, 80));
