@@ -118,7 +118,7 @@ app.whenReady().then(() => setTimeout(async () => {
   // Keyboard: Tab from the top reaches every control, in order, and each shows a focus ring.
   await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.body.focus()`);
   const walk = [];
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 30; i++) {
     w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' }); w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
     await new Promise((r) => setTimeout(r, 60));
     walk.push(await w.webContents.executeJavaScript(`(() => { const a = document.activeElement; if (!a || a === document.body) return null;

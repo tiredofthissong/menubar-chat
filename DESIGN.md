@@ -14,7 +14,7 @@
 - **Accent:** one deep teal (hue 195), used for the primary action (Send) and focus rings. Nothing else is colored except state: red for blocked steps and anything that deletes, and amber when today's spend nears the cap. Color is never the only signal: a delete step also says DELETE, and a diff line starts with + or -.
 - **Type:** the system font stack. 14px for the window (dense desktop UI), 12px for captions.
 - **Radii:** md (10px) for cards, bubbles, the chat box and notices; sm (6px) for buttons, list rows, inputs and code; pill for tags.
-- **Buttons:** three ranks, never colored by meaning: primary (Send only), default (a bordered button: the card answers), quiet (a lighter border, or none for links and the bar). Every button is at least 32px tall with a 40px target (an invisible margin), card answers and list rows are a full 40px, and labels sit centered on one line. Hover only where there is a pointer.
+- **Buttons:** three ranks, never colored by meaning: primary (Send only), default (a filled gray button with no outline, the way Mac buttons look: the card answers, starters, next steps), quiet (no fill, gray text, for lesser actions in panels). Every button is at least 32px tall with a 40px target (an invisible margin), card answers and list rows are a full 40px, and labels sit centered on one line. Hover only where there is a pointer.
 - **Light and dark:** both, following the Mac's setting. `npm test` checks every text and control pairing against WCAG 2.2 AA in both (4.5:1 text, 3:1 edges and focus) and that every color fits in sRGB.
 - **Layout:** one column, 480px wide, top to bottom:
   1. **The bar, one line:** the project name (a quiet button with a caret), its tag as plain text, and today's spend on the right. Two controls in one style, nothing else.
@@ -23,7 +23,8 @@
   4. **The notice:** one line just above the chat box, never over the conversation or a panel. A plain note ("Copied.") clears itself after a few seconds; a problem stays until you press **Close**.
   5. **The chat box:** the text box full width, then a row with the mode menu, a status line, Stop and Send.
 - **Status line** (next to Send): "Waiting on you", "Claude is working…", and "Waiting in garden-app" when a card waits in another project. Coming back after hours, it says where things stand without opening anything.
-- **Claude's replies** sit on the page, full width, without a bubble; what you typed is the one tinted bubble. Status lines in a row group tightly.
+- **Claude's replies** sit on the page, full width, without a bubble; what you typed is the one gray bubble (the teal stays for Send and focus). Status lines in a row group tightly.
+- **Not the generic AI look** (Bromo: "avoid the 'vibe-code' look"): no outline on every button, no colored user bubble, the copy button under a reply shows only when you point at the reply or tab to it, a problem notice is a small ! and plain words instead of a red box, and Stop shows only while Claude is working.
 - **Motion:** only a small press on buttons, and only when Reduce Motion is off. The menu bar icon holds still with Reduce Motion on.
 
 ## The approval card
@@ -121,7 +122,7 @@ The most important screen in the app.
 - **The meter no longer drops spend after a restart.** Claude Code reports a running cost from $0 for each run of its program, so the app now keeps one total per run and adds them up. Before, a New chat, a past chat or a skill reload in a project dropped what that project had already spent today. A skill reload also keeps the chat's own cost.
 - **Permission cards in one shape.** See The approval card above.
 - **Long step lists fold up.** Over three steps, the list sits behind **Show all N steps**, so the card stays short. Every step is still named, one click away. A list with a delete in it never folds.
-- **Copy.** A small copy icon at the end of each card's first line copies the whole card as text; one under each reply copies it as Claude wrote it. Card text can be selected too.
+- **Copy.** A small copy icon at the end of each card's first line copies the whole card as text; one under each reply (shown when you point at the reply) copies it as Claude wrote it. Card text can be selected too.
 - **Dev mode** (Bromo: "the allow prompts are too many"). A third mode in the mode menu. Claude Code runs in its normal asking mode; the app answers its asks without a card only for steps that stay in the project folder: reading, changing or creating files there (not in `.git`), and commands whose every path is in the folder. It still asks for anything outside the folder or in home or system folders, deletes, the internet (installs, downloads, push and pull), connected apps, helpers, `sudo` and system tools, and git steps that throw work away. A link that leads out of the folder counts as outside. The hard rules run first and are never loosened, change cards and Undo still come, and the chat lists every step. Turning it on says all this in the chat.
 - **Claude knows who it's working for.** The app tells Claude that you use this chat instead of a terminal or editor: it never asks you to edit a file or run a command yourself, it offers to do it. Before it calls work done or suggests a demo, it runs the project's tests and checks and says what is still untested. (Bromo, after Claude told him to edit plants.json in a code editor.)
 - **How accurate it is.** The figures update when each reply finishes, from Claude Code's own estimate at list prices. The Anthropic Console has the exact bill; the panel says so.
