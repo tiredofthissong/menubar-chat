@@ -14,6 +14,7 @@ import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
+import { pullHandoff, handoffUrl, HANDED, NOT_OPENED } from './handoff.mjs';
 import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
 
@@ -31,7 +32,7 @@ export class ProjectSession {
     this.changes = new ChangeStore(project.path);
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
-    this.approvals = 0; this.next = []; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
+    this.approvals = 0; this.next = []; this.hand = { prompt: null }; this.toolsRan = false; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
     this.permit = createPermit(this, { now: settings.now });
     this.broker = new ApprovalBroker({
       timeoutMs: settings.approvalTimeoutMs, gatherMs: settings.gatherMs ?? 120, onHour: () => this.permit.onHour(),
@@ -99,10 +100,10 @@ export class ProjectSession {
     }
     for (const ev of events) {
       if (ev.type !== 'text') { this.emit(ev); continue; }
-      const text = pullNext(ev.text, this.next); // "Next:" lines become buttons, not reply text
+      const text = pullHandoff(pullNext(ev.text, this.next), this.hand); // "Next:" lines become buttons; a "Handoff:" line opens Claude Code
       if (text) this.emit({ ...ev, text });
     }
-    if (facts.toolStarted) this.setStatus('working', facts.toolStarted.slice(0, 60));
+    if (facts.toolStarted) { this.toolsRan = true; this.setStatus('working', facts.toolStarted.slice(0, 60)); }
     if (facts.requestTokens !== undefined) this.meter.onRequestTokens(facts.requestTokens);
     for (const r of facts.toolResults || []) this.onToolResult(r);
     if (facts.result) this.onResult(facts.result);
@@ -124,6 +125,8 @@ export class ProjectSession {
     const { spent: spentUsd, capUsd } = this.budget;
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
     if (this.next.length) this.emit(event('suggestions', { items: this.next }));
+    const url = handoffUrl(this.hand.prompt, this.project.path); // after a tool ran, it never opens by itself
+    if (url) this.emit(event('handoff', { prompt: this.hand.prompt, url, auto: !this.toolsRan, line: this.toolsRan ? NOT_OPENED : HANDED }));
     this.next = [];
     this.emit(event('turn_done', { ok: res.ok, approvals: this.approvals, costUsd: res.totalCostUsd ?? 0, spentUsd, capUsd }));
     this.approvals = 0; this.turnOpen = false;
@@ -132,7 +135,7 @@ export class ProjectSession {
   }
 
   send(text) {
-    this.next = [];
+    this.next = []; this.hand = { prompt: null }; this.toolsRan = false;
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
     // Typing while a question waits answers it; while any other card waits, it's a "no".
     if (this.broker.answerTyped(text)) return;

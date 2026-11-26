@@ -43,6 +43,7 @@ export const EVENT_TYPES = [
   'undo_result',      // { id, ok, text }
   'usage',            // { contextPct, chatUsd, spentUsd, capUsd }
   'hint',             // { text } a gentle note, e.g. an unknown /command
+  'handoff',          // { prompt, url, auto, line } a big job handed to Claude Code in Claude's desktop app
   'suggestions',      // { items } up to three next steps Claude suggested; each becomes a button that sends it
   'turn_done',        // { ok, approvals, costUsd, spentUsd, capUsd }
   'status',           // { state, line, pendingCards, busy } the menu bar's hover line

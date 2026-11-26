@@ -92,6 +92,7 @@
       case 'blocked': Log.line(p, `Blocked: ${ev.plain}`, 'line-blocked'); break;
       case 'tool_failed': Log.line(p, ev.text); break;
       case 'hint': hint(p, ev); break;
+      case 'handoff': Log.line(p, ev.line); break;
       case 'suggestions': Log.next(p, (ev.items || []).slice(0, 3), (item) => sendText(p, item)); break;
       case 'past': Log.reset(p); Log.past(p, ev.turns || []); Log.line(p, 'Picked up this chat. Anything you send carries on from here.'); state.chat.delete(p); break;
       case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.reset(p); Log.line(p, 'New chat started.'); state.chat.delete(p); } break;

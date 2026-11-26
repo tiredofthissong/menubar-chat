@@ -1,8 +1,6 @@
 // main.mjs - the Electron side: menu bar icon, window, hotkey and notifications.
-// Claude Code itself runs in a background process (engine/helper-process.mjs), reached only
-// through Electron's built-in messaging (app/helper-link.mjs): no network port, no socket.
-// Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden,
-// and only shown or hidden, so it opens fast.
+// Claude Code runs in a background process (engine/helper-process.mjs), reached only through Electron's messaging (app/helper-link.mjs).
+// Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden, and only shown or hidden, so it opens fast.
 import { app, dialog, globalShortcut, ipcMain, Menu, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
 import menubarPkg from 'menubar';
 import path from 'node:path';
@@ -19,6 +17,7 @@ import { approvalNotice } from './notify.mjs';
 import { createProjects } from './project-ipc.mjs';
 import { createLearning } from './learning.mjs';
 import { isLearnLink } from '../shared/learn.mjs';
+import { createHandoffOpener } from './handoff-open.mjs';
 import { createLoginItem, trayMenuTemplate, withCommonPaths } from './login-item.mjs';
 
 const { menubar } = menubarPkg;
@@ -36,8 +35,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 const login = createLoginItem({ app });
 
 let projects = null; let learning = null; let spentUsd = 0; let pendingCards = 0; let busy = 0;
-let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false;
-let activity = { hovered: false, typing: false };
+let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false; let activity = { hovered: false, typing: false };
 const notices = new Map(); // card id -> its notification, closed once the card is answered
 const tuck = new TuckTimer({
   hide: () => mb?.hideWindow(),
@@ -50,6 +48,7 @@ const keychainHasKey = () => new Promise((resolve) => {
 });
 
 const send = (ev) => mb?.window?.webContents.send('event', ev);
+const handoff = createHandoffOpener({ shell, send });
 
 // The helper's environment leaves out any API key in the app's own environment; each Claude Code
 // process gets its key from the Keychain only (engine/options.mjs).
@@ -84,6 +83,7 @@ function onEvent(ev) {
   send(ev);
   if (ev.type === 'approval') { if (!ev.card?.regrouped) learning?.record(ev); if (!mb.window?.isVisible()) notifyApproval(ev); }
   if (ev.type === 'approval_closed') { notices.get(ev.id)?.close(); notices.delete(ev.id); }
+  handoff(ev); // a big job: Claude's desktop app opens with it
   if (ev.type === 'turn_done') tuck.replied();
 }
 
