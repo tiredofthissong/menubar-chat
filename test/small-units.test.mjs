@@ -13,13 +13,15 @@ test('meter: cost is the latest running total, context is a share of the largest
   const m = createMeter();
   assert.deepEqual(m.snapshot(), { contextPct: null, chatUsd: 0, priceUnknown: false });
   m.onRequestTokens(50000);
-  m.onResult({ totalCostUsd: 0.05, windows: [200000] });
-  m.onResult({ totalCostUsd: 0.12, windows: [200000, 1000000] });
-  assert.deepEqual(m.snapshot(), { contextPct: 5, chatUsd: 0.12, priceUnknown: false }, 'not 0.17: the SDK total already includes earlier turns');
-  m.onRequestTokens(-1); m.onResult({ totalCostUsd: -3, priceUnknown: true });
+  m.onResult({ chatUsd: 0.05, windows: [200000] });
+  m.onResult({ chatUsd: 0.12, windows: [200000, 1000000] });
+  assert.deepEqual(m.snapshot(), { contextPct: 5, chatUsd: 0.12, priceUnknown: false }, 'the chat cost comes from the budget record');
+  m.onRequestTokens(-1); m.onResult({ chatUsd: -3, priceUnknown: true });
   assert.deepEqual(m.snapshot(), { contextPct: 5, chatUsd: 0.12, priceUnknown: true }, 'bad numbers are ignored; an unknown price shows as unknown');
   m.reset();
   assert.equal(m.snapshot().chatUsd, 0);
+  m.reset(0.4);
+  assert.equal(m.snapshot().chatUsd, 0.4, 'a past chat opens with what it had cost');
 });
 
 test('history: this folder only, newest first, no archived chats, titles cleaned', async () => {

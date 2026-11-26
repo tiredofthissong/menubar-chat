@@ -15,11 +15,11 @@ import { Budget } from '../usage/budget.mjs';
 import { createLogger } from '../shared/log.mjs';
 import { createHelper } from './helper.mjs';
 
-/** A spend file that holds only { day, spent }. */
+/** The spend file: { day, spent, chats } (an older file holds only day and spent). */
 export function fileStore(file) {
   return {
     load: () => JSON.parse(fs.readFileSync(file, 'utf8')),
-    save: (v) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ day: v.day, spent: v.spent })); },
+    save: (v) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ day: v.day, spent: v.spent, chats: v.chats || {} })); },
   };
 }
 

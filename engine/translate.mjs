@@ -7,6 +7,7 @@
 import { event } from '../shared/contract.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
 import { redact } from '../shared/redact.mjs';
+import { tokensOf } from '../usage/budget.mjs';
 
 const WHY = /(?:^|\n)\s*Why:\s*([^\n]+)/;
 const LONG_LINE = 400;
@@ -94,7 +95,7 @@ export function translate(m, st) {
     flush();
     const models = Object.values(m.modelUsage || {});
     facts.result = {
-      ok: !m.is_error, totalCostUsd: m.total_cost_usd,
+      ok: !m.is_error, totalCostUsd: m.total_cost_usd, sessionId: m.session_id, tokens: tokensOf(m.modelUsage, m.usage),
       windows: models.map((x) => x?.contextWindow), priceUnknown: models.some((x) => x?.costBasis === 'unknown'),
     };
   }

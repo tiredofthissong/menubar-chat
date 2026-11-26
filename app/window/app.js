@@ -24,7 +24,7 @@
     $('mode').value = m; $('mode').title = MODE[m][1]; $('mode').classList.toggle('mode-on', m !== 'default');
   }
   function showSpend(spent, cap) {
-    $('spend').textContent = `$${spent.toFixed(2)} of $${cap} today`;
+    $('spend').textContent = `About $${spent.toFixed(2)} of $${cap} today`; $('spend').title = 'An estimate. Click for details and your exact bill.';
     $('spend').classList.toggle('near', spent >= cap * 0.8);
     state.spent = spent; state.cap = cap; Panel.refresh();
   }

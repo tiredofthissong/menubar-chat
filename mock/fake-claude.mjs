@@ -69,7 +69,8 @@ function deniedByRule(rules, name, input) {
   });
 }
 
-export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey, answers = [] } = {}) {
+const savedTotals = new Map(); // like Claude Code 2.1.332, a resumed chat can carry on from its saved total
+export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey, answers = [], restoreCost = false } = {}) {
   const args = spawnOpts.args || [];
   const cwd = spawnOpts.cwd || process.cwd();
   const stdin = new PassThrough(); const stdout = new PassThrough(); const ee = new EventEmitter();
@@ -78,7 +79,10 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
   const denyRules = (argValue(args, '--disallowedTools') || '').split(',').filter(Boolean);
   const keySource = forcedKey || (args.some((a) => a.includes('apiKeyHelper')) ? 'apiKeyHelper' : 'none');
   const hookIds = []; let hookBlocks = false;
-  const waiting = new Map(); let turnAbort = null; const queue = []; let busy = false; let cost = 0;
+  const waiting = new Map(); let turnAbort = null; const queue = []; let busy = false;
+  const carried = restoreCost && argValue(args, '--resume') ? savedTotals.get(sessionId) : null;
+  let cost = carried?.cost ?? 0; let tokensIn = carried?.tokensIn ?? 0;
+  const modelUsage = () => ({ 'claude-mock': { contextWindow: 200000, inputTokens: tokensIn, outputTokens: tokensIn * 0.15, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } });
 
   const proc = {
     stdin, stdout, killed: false, exitCode: null, signalCode: null,
@@ -188,8 +192,8 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey,
       }
       if (step.big && handedOff()) break;
     }
-    cost += 0.01;
-    write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: { 'claude-mock': { contextWindow: 200000 } }, permission_denials: [], ...base() });
+    cost += 0.01; tokensIn += 1200; savedTotals.set(sessionId, { cost, tokensIn }); // usage() is 1200 in, 180 out
+    write({ type: 'result', subtype: 'success', is_error: false, duration_ms: 10, duration_api_ms: 10, num_turns: 1, result: 'ok', stop_reason: 'end_turn', total_cost_usd: cost, usage: usage(), modelUsage: modelUsage(), permission_denials: [], ...base() });
   }
 
   return proc;

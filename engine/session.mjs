@@ -60,7 +60,7 @@ export class ProjectSession {
   warm() { if (!this.q && !this.budget.reached) this.start(); }
 
   start() {
-    this.run = `${this.project.name}#${++this.runNo}`; this.meter.newProcess(); // a restart starts its own cost total at 0
+    this.run = `${this.project.name}#${++this.runNo}`; // the budget works out where a restart's cost total starts
     this.skills = skillStamp(skillDirs(this.project.path, this.settings.home));
     this.input = createInputQueue();
     this.scratch = newScratch(this.project.path);
@@ -124,8 +124,7 @@ export class ProjectSession {
   }
 
   onResult(res) {
-    this.budget.record(this.run, res.totalCostUsd);
-    this.meter.onResult(res);
+    this.meter.onResult({ ...res, chatUsd: this.budget.record(this.run, res) });
     const { spent: spentUsd, capUsd } = this.budget;
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
     if (this.next.length) this.emit(event('suggestions', { items: this.next }));
@@ -181,7 +180,7 @@ export class ProjectSession {
   }
 
   /** Pick up a past chat (or start fresh with null). Anything waiting is denied first. */
-  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(); this.learn = createLearnPicker(); this.permit.pass.end(); }
+  resume(sessionId) { this.close(); this.sessionId = sessionId; this.meter.reset(this.budget.chatCost(sessionId) ?? 0); this.learn = createLearnPicker(); this.permit.pass.end(); }
 
   async stop() {
     this.broker.denyAll('Stopped before you answered, so it was not run.');

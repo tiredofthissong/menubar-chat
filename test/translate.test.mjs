@@ -68,8 +68,9 @@ test('tool results: ok or not, the text, and the patch when Claude Code sends on
 });
 
 test('result: running cost, context window and unknown prices', () => {
-  const { facts } = translate({ type: 'result', is_error: false, total_cost_usd: 0.42, modelUsage: { a: { contextWindow: 200000 }, b: { contextWindow: 1000000, costBasis: 'unknown' } } }, newScratch());
-  assert.deepEqual(facts.result, { ok: true, totalCostUsd: 0.42, windows: [200000, 1000000], priceUnknown: true });
+  const { facts } = translate({ type: 'result', is_error: false, total_cost_usd: 0.42, session_id: 's1', usage: { input_tokens: 10, output_tokens: 5 }, modelUsage: { a: { contextWindow: 200000, inputTokens: 300, outputTokens: 20 }, b: { contextWindow: 1000000, costBasis: 'unknown' } } }, newScratch());
+  // sessionId and tokens let the daily total tell a resumed chat's carried cost from new spend.
+  assert.deepEqual(facts.result, { ok: true, totalCostUsd: 0.42, sessionId: 's1', tokens: { all: 320, turn: 15 }, windows: [200000, 1000000], priceUnknown: true });
   assert.equal(translate({ type: 'result', is_error: true }, newScratch()).facts.result.ok, false);
 });
 

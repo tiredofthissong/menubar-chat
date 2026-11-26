@@ -124,3 +124,5 @@ export function isLearnLink(url) {
   try { const u = new URL(url); return u.protocol === 'https:' && LEARN_HOSTS.includes(u.hostname) && !u.username && !u.port && !u.search; } catch { return false; }
 }
 export const ALL_LINKS = [...ALLOWED];
+// The one page off the learning list the app opens: your exact spend, on the Anthropic Console.
+export const CONSOLE_USAGE = 'https://platform.claude.com/usage';

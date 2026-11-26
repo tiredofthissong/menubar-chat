@@ -3,7 +3,7 @@
 // by course, with the course one click away. Links open only if shared/learn.mjs vouches for them.
 import fs from 'node:fs';
 import path from 'node:path';
-import { COURSES, TOPICS, isLearnLink } from '../shared/learn.mjs';
+import { COURSES, TOPICS, isLearnLink, CONSOLE_USAGE } from '../shared/learn.mjs';
 
 const known = (o, k) => typeof k === 'string' && Object.hasOwn(o, k);
 
@@ -46,7 +46,7 @@ export function createLearning({ ipcMain, shell, fromOurWindow, file }) {
   }
   ipcMain.handle('learn:summary', (e) => (fromOurWindow(e) ? { ok: true, courses: summarize(readLog(file)) } : { ok: false }));
   ipcMain.handle('learn:open', (e, url) => {
-    if (!fromOurWindow(e) || !isLearnLink(url)) return { ok: false, error: 'That link is not on the checked list, so it was not opened.' };
+    if (!fromOurWindow(e) || !(isLearnLink(url) || url === CONSOLE_USAGE)) return { ok: false, error: 'That link is not on the checked list, so it was not opened.' };
     shell.openExternal(url); return { ok: true };
   });
   return { record };

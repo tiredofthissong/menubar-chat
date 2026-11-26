@@ -137,10 +137,10 @@ window.ChatPanel = (() => {
   function usage() {
     const u = ctx.usage(); const s = section('Usage');
     const today = el('progress'); today.max = u.cap; today.value = Math.min(u.spent, u.cap); today.setAttribute('aria-label', 'Spent today');
-    s.append(el('p', '', `Today: $${u.spent.toFixed(2)} of $${u.cap}`), today, el('p', '', `This chat: $${(u.chatUsd ?? 0).toFixed(2)}`));
+    s.append(el('p', '', `Today: about $${u.spent.toFixed(2)} of $${u.cap}`), today, el('p', '', `This chat: about $${(u.chatUsd ?? 0).toFixed(2)}`));
     if (u.contextPct == null) s.append(el('p', 'muted', 'Memory used: shows after the first reply.'));
     else { const m = el('progress'); m.max = 100; m.value = u.contextPct; m.setAttribute('aria-label', 'Memory used'); s.append(el('p', '', `Memory used: ${u.contextPct}%`), m); }
-    s.append(el('p', 'panel-note', `Model: ${u.model}. Costs update when each reply finishes. They are Claude Code\'s own estimate at list prices; your Anthropic Console shows the exact bill. Spending stops at the daily cap and starts over at midnight. A long chat uses more memory; a new chat starts fresh.`), el('p', 'panel-note', 'Right-click the menu bar icon to quit, or to start the app when your Mac starts.'));
+    s.append(el('p', 'panel-note', `Model: ${u.model}. Costs are an estimate from list prices and update when each reply finishes. Jobs sent to the Claude app use your subscription and aren\'t counted here. Your Anthropic Console shows the exact bill, which can take a few hours to catch up. Spending stops at the daily cap and starts over at midnight. A long chat uses more memory; a new chat starts fresh.`), button('Open Console usage', 'btn btn-small btn-quiet', () => ctx.api.openLearn('https://platform.claude.com/usage').then(say)), el('p', 'panel-note', 'Right-click the menu bar icon to quit, or to start the app when your Mac starts.'));
     if (u.version) s.append(el('p', 'panel-note', `Menu Bar Chat version ${u.version}`)); // so a test can tell which build is running
     return s;
   }

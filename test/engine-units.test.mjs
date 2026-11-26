@@ -101,30 +101,30 @@ test('status line: short, no secrets, sticky while a card is open, counts other 
 
 test('budget: adds up per project and stops at the cap', () => {
   const b = new Budget(5);
-  b.record('a', 1.2); b.record('a', 2); b.record('b', 2.5); b.record('c', -1); b.record('d', 'x');
+  b.record('a', { totalCostUsd: 1.2 }); b.record('a', { totalCostUsd: 2 }); b.record('b', { totalCostUsd: 2.5 }); b.record('c', { totalCostUsd: -1 }); b.record('d', { totalCostUsd: 'x' });
   assert.equal(b.spent, 4.5); assert.equal(b.left, 0.5); assert.equal(b.reached, false);
-  b.record('b', 3); assert.equal(b.reached, true); assert.equal(b.left, 0);
+  b.record('b', { totalCostUsd: 3 }); assert.equal(b.reached, true); assert.equal(b.left, 0);
 });
 
 test('budget: the cap is per day and survives a restart', () => {
   let saved = null; let day = '2026-11-26';
   const store = { load: () => saved, save: (v) => { saved = v; } };
   const first = new Budget(5, { store, today: () => day });
-  first.record('a', 1.5); first.record('b', 1);
-  assert.deepEqual(saved, { day: '2026-11-26', spent: 2.5 });
+  first.record('a', { totalCostUsd: 1.5 }); first.record('b', { totalCostUsd: 1 });
+  assert.deepEqual(saved, { day: '2026-11-26', spent: 2.5, chats: {} });
   const second = new Budget(5, { store, today: () => day }); // the app was quit and reopened
   assert.equal(second.spent, 2.5, 'earlier spend today still counts');
-  second.record('a', 2.6);
+  second.record('a', { totalCostUsd: 2.6 });
   assert.equal(second.reached, true, '2.5 earlier + 2.6 now is past $5');
   day = '2026-11-27';
   assert.equal(second.spent, 0, 'a new day starts over');
   assert.equal(second.reached, false);
-  second.record('a', 3.1); // the same session spends 0.5 more after midnight
+  second.record('a', { totalCostUsd: 3.1 }); // the same session spends 0.5 more after midnight
   assert.equal(second.spent, 0.5);
   const nextDay = new Budget(5, { store: { load: () => ({ day: '2026-11-25', spent: 4 }), save() {} }, today: () => '2026-11-26' });
   assert.equal(nextDay.spent, 0, "yesterday's file doesn't count today");
   const broken = new Budget(5, { store: { load: () => { throw new Error('no file'); }, save() { throw new Error('read-only'); } } });
-  broken.record('a', 1); assert.equal(broken.spent, 1, 'a missing or unwritable file never breaks the meter');
+  broken.record('a', { totalCostUsd: 1 }); assert.equal(broken.spent, 1, 'a missing or unwritable file never breaks the meter');
 });
 
 test('redact: keys and tokens never show, even split across chunks', () => {

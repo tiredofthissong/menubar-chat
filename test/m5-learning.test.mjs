@@ -110,7 +110,12 @@ test('learning log file: main records cards, the window gets a summary, links op
   assert.equal((await handlers['learn:open'](ours, 'https://evil.io/')).ok, false);
   assert.equal((await handlers['learn:open']({}, COURSES['Claude Code 101'])).ok, false, 'not from our window');
   assert.equal((await handlers['learn:open'](ours, COURSES['Claude Code 101'])).ok, true);
-  assert.deepEqual(opened, [COURSES['Claude Code 101']]);
+  // The Usage panel's one outside page: the Console's usage page, exactly, and nothing near it.
+  assert.equal((await handlers['learn:open'](ours, 'https://platform.claude.com/usage')).ok, true);
+  for (const near of ['https://platform.claude.com/settings/keys', 'https://platform.claude.com/usage?x=1', 'http://platform.claude.com/usage']) {
+    assert.equal((await handlers['learn:open'](ours, near)).ok, false, near);
+  }
+  assert.deepEqual(opened, [COURSES['Claude Code 101'], 'https://platform.claude.com/usage']);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
