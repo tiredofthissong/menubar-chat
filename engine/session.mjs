@@ -7,6 +7,7 @@ import { classifyInput } from '../shared/input.mjs';
 import { ApprovalBroker } from '../policy/approvals.mjs';
 import { makePreToolUseHook } from '../policy/hook.mjs';
 import { checkToolCall } from '../policy/rules.mjs';
+import { questionCard, MALFORMED } from '../policy/questions.mjs';
 import { START_MODE, requestMode, MODES } from '../policy/modes.mjs';
 import { ChangeStore } from '../changes/changes.mjs';
 import { createMeter } from '../usage/meter.mjs';
@@ -19,16 +20,8 @@ import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
 
 export class ProjectSession {
-  /**
-   * @param {object} d
-   * @param {{ name: string, path: string, tag: string }} d.project
-   * @param {{ query: Function }} d.sdk
-   * @param {(ev: object) => void} d.emit           every event carries { project }
-   * @param {import('../status/status.mjs').StatusBoard} d.status
-   * @param {import('../usage/budget.mjs').Budget} d.budget
-   * @param {{ keychainService?: string|null, spawn?: Function, hubPaths?: string[], approvalTimeoutMs?: number, model?: string }} d.settings
-   * @param {object} [d.log]
-   */
+  /** d: { project {name,path,tag}, sdk {query}, emit (every event carries {project}), status, budget,
+   *  settings {keychainService?, spawn?, hubPaths?, approvalTimeoutMs?, model?}, log? } */
   constructor({ project, sdk, emit, status, budget, settings, log }) {
     Object.assign(this, { project, sdk, status, budget, settings, log });
     this.emit = (ev) => emit({ ...ev, project: project.name });
@@ -37,12 +30,12 @@ export class ProjectSession {
     this.changes = new ChangeStore(project.path);
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
-    this.approvals = 0; this.next = []; // this reply's suggested next steps
+    this.approvals = 0; this.next = []; this.runNo = 0; // runNo: each Claude Code process counts apart toward today
     this.broker = new ApprovalBroker({
       timeoutMs: settings.approvalTimeoutMs,
       onOpen: (card) => { this.approvals++; this.cards(); this.emit(event('approval', { card })); },
       onClose: (id, decision, why, toolUseID) => {
-        if (decision !== 'allow' && toolUseID) { this.explained.add(toolUseID); this.changes.forget(toolUseID); }
+        if (decision === 'deny' && toolUseID) { this.explained.add(toolUseID); this.changes.forget(toolUseID); }
         // Claude gets the long reason; the window gets a short one.
         const said = why.startsWith('You chose Move to Trash') ? 'You chose Move to Trash instead.' : why;
         this.cards(); this.emit(event('approval_closed', { id, decision, why: said }));
@@ -57,8 +50,10 @@ export class ProjectSession {
   canUseTool = async (toolName, input, opts) => {
     const verdict = checkToolCall({ project: this.project, hubPaths: this.settings.hubPaths }, toolName, input);
     if (verdict.decision === 'deny') return { behavior: 'deny', message: verdict.plain, toolUseID: opts?.toolUseID };
-    const card = explainToolCall(toolName, input, this.project.path);
-    const answer = await this.broker.ask(toolName, input, opts, { ...card, learn: this.learn.pick(toolName, input, card.danger) });
+    const asks = toolName === 'AskUserQuestion' ? questionCard(input) : null; // a question gets a card you tap
+    if (toolName === 'AskUserQuestion' && !asks) return { behavior: 'deny', message: MALFORMED, toolUseID: opts?.toolUseID };
+    const card = asks || explainToolCall(toolName, input, this.project.path);
+    const answer = await this.broker.ask(toolName, input, opts, asks || { ...card, learn: this.learn.pick(toolName, input, card.danger) });
     // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
     if (toolName === 'ExitPlanMode' && answer.behavior === 'allow' && this.mode === 'plan') this.noteMode('default');
     return answer;
@@ -70,6 +65,7 @@ export class ProjectSession {
   warm() { if (!this.q && !this.budget.reached) this.start(); }
 
   start() {
+    this.run = `${this.project.name}#${++this.runNo}`; this.meter.newProcess(); // a restart starts its own cost total at 0
     this.skills = skillStamp(skillDirs(this.project.path, this.settings.home));
     this.input = createInputQueue();
     this.scratch = newScratch(this.project.path);
@@ -131,7 +127,7 @@ export class ProjectSession {
   }
 
   onResult(res) {
-    this.budget.record(this.project.name, res.totalCostUsd);
+    this.budget.record(this.run, res.totalCostUsd);
     this.meter.onResult(res);
     const { spent: spentUsd, capUsd } = this.budget;
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
@@ -146,7 +142,8 @@ export class ProjectSession {
   send(text) {
     this.next = [];
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
-    // Typing while a card waits answers it with a "no". New or changed skills: same chat, fresh process.
+    // Typing while a question waits answers it; while any other card waits, it's a "no".
+    if (this.broker.answerTyped(text)) return;
     if (this.broker.size) this.broker.denyAll('You sent a new message instead, so it was not run.');
     if (this.q && !this.turnOpen && skillStamp(skillDirs(this.project.path, this.settings.home)) !== this.skills) {
       this.close(); this.slashCommands = null;

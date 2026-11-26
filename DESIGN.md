@@ -97,6 +97,12 @@ The most important screen in the app.
 - **PATH from the Finder.** An app opened from the Finder gets a short PATH, so the helper adds Homebrew, `/usr/local/bin` and `~/.local/bin` after the PATH it has. Claude's commands find `git`, `node` and `gh` the same as in the Terminal.
 - Tests and developer scripts stay out of the app.
 
+## Fixes from the first real build (Nov 26)
+
+- **Claude's questions are a card you tap.** When Claude asks a multiple-choice question, the card shows one button per answer, with Claude's note under each. One question with one pick sends on the tap; more questions, or "pick any", send with **Send answers**, which stays greyed out until each question has a pick. Typing in the chat box answers it in your own words, and **Skip** says no. Nothing is picked for you. The old card had only Allow, which let the question run with no answer, so Claude said it "didn't come through".
+- **The meter no longer drops spend after a restart.** Claude Code reports a running cost from $0 for each run of its program, so the app now keeps one total per run and adds them up. Before, a New chat, a past chat or a skill reload in a project dropped what that project had already spent today. A skill reload also keeps the chat's own cost.
+- **How accurate it is.** The figures update when each reply finishes, from Claude Code's own estimate at list prices. The Anthropic Console has the exact bill; the panel says so.
+
 ## Known gaps
 
 - Undo copies are kept in memory, so they're gone once the app quits.

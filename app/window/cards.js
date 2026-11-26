@@ -1,7 +1,8 @@
 // cards.js - the approval card, the most important screen in the app. Plain script.
 // Rules (DESIGN.md): one plain line first; a chain names every step, numbered; the exact command
 // is one click away; Deny and Allow look the same and neither is pre-selected (a stray Enter
-// can't approve); a delete is a red card that offers Move to Trash instead.
+// can't approve); a delete is a red card that offers Move to Trash instead. Claude's own
+// multiple-choice questions get a question card with one button per answer.
 'use strict';
 window.ChatCards = (() => {
   const { el, button } = window.ChatDom;
@@ -39,12 +40,49 @@ window.ChatCards = (() => {
     return box;
   }
 
+  // Claude's multiple-choice question: tap an answer. One question with one pick sends on the tap;
+  // more questions, or "pick any", send with Send answers. Typing in the chat box answers it too.
+  function question(project, card, act) {
+    const c = el('article', 'card card-question');
+    c.setAttribute('aria-label', `Claude is asking you a question, in ${project}`);
+    c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
+    const qs = card.questions; const picks = qs.map(() => new Set());
+    const quick = qs.length === 1 && qs[0].multiSelect !== true;
+    const send = button('Send answers', 'btn', () => act.answer(`a:${picks.map((s) => [...s].sort().join(',')).join(';')}`));
+    const ready = () => { send.disabled = picks.some((s) => s.size === 0); };
+    qs.forEach((q, qi) => {
+      const box = el('div', 'card-q'); box.setAttribute('role', 'group'); box.setAttribute('aria-label', q.question);
+      if (q.header) box.append(el('span', 'pill pill-quiet', q.header));
+      box.append(el('p', 'card-ask', q.question));
+      if (q.multiSelect === true) box.append(el('p', 'card-q-hint', 'Pick any that fit.'));
+      q.options.forEach((o, oi) => {
+        const b = button(o.label, 'btn card-option', () => {
+          if (quick) { act.answer(`a:${oi}`); return; }
+          const s = picks[qi];
+          if (q.multiSelect !== true) { s.clear(); for (const x of box.querySelectorAll('.card-option')) x.setAttribute('aria-pressed', 'false'); }
+          if (s.has(oi)) s.delete(oi); else s.add(oi);
+          b.setAttribute('aria-pressed', String(s.has(oi))); ready();
+        });
+        if (!quick) b.setAttribute('aria-pressed', 'false');
+        if (o.note) b.append(el('span', 'card-option-note', o.note));
+        box.append(b);
+      });
+      c.append(box);
+    });
+    c.append(el('p', 'card-q-hint', 'Or type your own answer in the chat box.'));
+    const row = el('div', 'card-actions'); row.append(button('Skip', 'btn', () => act.answer('skip')));
+    if (!quick) { ready(); row.append(send); }
+    c.append(row);
+    return c;
+  }
+
   /**
    * @param {string} project
    * @param {object} card   from the helper: { id, toolName, plain, items?, command?, danger, trash }
    * @param {{ answer: (decision: string) => void, copy: (text: string) => void, learn?: (url: string) => void }} act
    */
   function render(project, card, act) {
+    if (card.kind === 'question' && Array.isArray(card.questions)) return question(project, card, act);
     const danger = card.danger === true;
     const c = el('article', danger ? 'card danger' : 'card');
     c.setAttribute('aria-label', `Claude is asking you, in ${project}`);
@@ -66,7 +104,7 @@ window.ChatCards = (() => {
   }
 
   /** While an answer is on its way, no second click can count. */
-  const settle = (node) => { for (const b of node.querySelectorAll('.card-actions button')) b.disabled = true; };
+  const settle = (node) => { for (const b of node.querySelectorAll('.card-actions button, .card-option')) b.disabled = true; };
 
   return { render, settle };
 })();

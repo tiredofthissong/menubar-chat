@@ -135,6 +135,18 @@ app.whenReady().then(() => setTimeout(async () => {
     b?.click(); const q = document.querySelector('#panel-projects .confirm'); return { button: !!b, asks: q?.querySelector('p')?.textContent, answers: [...(q?.querySelectorAll('button') || [])].map((x) => x.textContent) }; })()`);
   await w.webContents.executeJavaScript(`document.getElementById('project').click()`); await wait(200);
   console.log('SMOKE-LEARN ' + JSON.stringify({ starters, learnTitles, wrap }));
+  // Claude's multiple-choice questions: one button per answer; pick-any questions send with Send answers.
+  await w.webContents.executeJavaScript(`document.querySelectorAll('.card').forEach((c) => c.remove())`);
+  const q = (question, multiSelect, labels) => ({ question, header: multiSelect ? 'Features' : 'Data', multiSelect, options: labels.map((l, i) => ({ label: l, note: i ? '' : 'Fits in one day' })) });
+  const here = await w.webContents.executeJavaScript(`document.getElementById('project').textContent`);
+  w.webContents.send('event', { project: here, type: 'approval', card: { id: 'smoke-q2', kind: 'question', defaultChoice: 'deny', plain: 'x', questions: [q('Where does the plant info come from?', false, ['Typed in by hand', 'Sensors']), q('Which extras?', true, ['Reminders', 'Photos', 'History'])] } });
+  await wait(400);
+  if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); w.show(); await wait(300); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-question.png'), (await w.webContents.capturePage()).toPNG()); }
+  const question = await w.webContents.executeJavaScript(`(() => { const c = document.querySelector('.card-question'); const send = [...c.querySelectorAll('.card-actions button')].find((b) => b.textContent === 'Send answers');
+    const before = send.disabled; const o = c.querySelectorAll('.card-option'); o[1].click(); o[0].click(); o[2].click(); o[4].click(); return {
+    options: [...o].map((b) => b.firstChild.textContent), pressed: [...o].map((b) => b.getAttribute('aria-pressed')), sendWasDisabled: before, sendReady: !send.disabled,
+    actions: [...c.querySelectorAll('.card-actions button')].map((b) => b.textContent), hint: c.querySelector('.card-q-hint').textContent }; })()`);
+  console.log('SMOKE-QUESTION ' + JSON.stringify(question));
   if (process.env.SMOKE_SHOT) {
     const fs = await import('node:fs');
     w.show(); await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.querySelector('.log').scrollTop = 1e9`);

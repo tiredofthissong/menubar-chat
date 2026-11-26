@@ -1,6 +1,7 @@
 // budget.mjs - a daily spending cap across every project.
 // The SDK reports a running total per query (result.total_cost_usd); we keep the latest per
-// project and add them up. What earlier app runs spent today is carried in from a small store
+// Claude Code process ("project#1", "project#2" after a New chat or restart) and add them all up,
+// so a restart never drops what that project already spent today (bug found Nov 26). What earlier app runs spent today is carried in from a small store
 // (a JSON file on the Mac with just the day and the total). At the cap, new messages are refused
 // until the next day. maxBudgetUsd on each query is a second, per-session backstop.
 export const localDay = (d = new Date()) => d.toLocaleDateString('en-CA'); // YYYY-MM-DD, the Mac's own time zone

@@ -8,9 +8,12 @@
 //   - "allow" means allow ONCE: updatedPermissions ("always allow") is never returned
 //   - "trash" (delete cards only) is a "no" too: the rm never runs; Claude is told to move
 //     the same files to the Trash instead, which asks you again on a new card
+//   - a question card (policy/questions.mjs) takes a tapped or typed answer, which goes back
+//     inside the tool's input; a skip or anything that doesn't fit is a "no"
 // Flow idea (pending map + race against the abort signal) from T3 Code (MIT), rewritten;
 // adapted from this project's code-health architect prototype.
 import { randomUUID } from 'node:crypto';
+import { parseAnswer, typedAnswers, answeredLine, SKIPPED } from './questions.mjs';
 
 export const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 export const TRASH_INSTEAD = 'You chose Move to Trash instead, so nothing was deleted. Do not delete these files. '
@@ -22,7 +25,7 @@ export class ApprovalBroker {
     this.onOpen = onOpen;
     this.onClose = onClose;
     this.timeoutMs = timeoutMs;
-    this.pending = new Map(); // id -> settle(decision, why)
+    this.pending = new Map(); // id -> { settle(decision, why, answers), questions }
     this.danger = new Set();  // ids of delete cards (the only ones that offer Move to Trash)
   }
 
@@ -35,18 +38,19 @@ export class ApprovalBroker {
     return new Promise((resolve) => {
       let timer = null;
       const onAbort = () => settle('deny', 'Stopped before you answered, so it was not run.');
-      const settle = (decision, why) => {
+      const settle = (decision, why, answers) => {
         if (!this.pending.delete(id)) return; // answered already: ignore
         this.danger.delete(id);
         if (timer) clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
-        const allowed = decision === 'allow';
-        this.onClose(id, allowed ? 'allow' : 'deny', why || '', toolUseID);
+        const answered = decision === 'answer' && answers && typeof answers === 'object';
+        const allowed = decision === 'allow' || answered;
+        this.onClose(id, answered ? 'answer' : allowed ? 'allow' : 'deny', why || '', toolUseID);
         resolve(allowed
-          ? { behavior: 'allow', updatedInput: input, toolUseID }
+          ? { behavior: 'allow', updatedInput: answered ? { ...input, answers } : input, toolUseID }
           : { behavior: 'deny', message: why || 'You said no, so it was not run.', toolUseID });
       };
-      this.pending.set(id, settle);
+      this.pending.set(id, { settle, questions: card.kind === 'question' ? input.questions : null });
       if (card.danger === true) this.danger.add(id);
       if (signal?.aborted) return onAbort();
       signal?.addEventListener('abort', onAbort, { once: true });
@@ -57,8 +61,14 @@ export class ApprovalBroker {
 
   /** The window's answer. Returns false for an unknown or already-answered id. */
   answer(id, decision) {
-    const settle = this.pending.get(id);
-    if (!settle) return false;
+    const p = this.pending.get(id);
+    if (!p) return false;
+    const { settle } = p;
+    if (p.questions) {
+      const answers = parseAnswer(decision, p.questions);
+      if (answers) settle('answer', answeredLine(answers), answers); else settle('deny', SKIPPED);
+      return true;
+    }
     // Strict equality on purpose. Do not "normalize" this (no toLowerCase, no trim).
     if (typeof decision === 'string' && decision === 'allow') settle('allow');
     else if (decision === 'trash' && this.danger.has(id)) settle('deny', TRASH_INSTEAD);
@@ -68,6 +78,13 @@ export class ApprovalBroker {
 
   /** Deny everything still waiting (Stop, shutdown, or a typed reply instead of an answer). */
   denyAll(why) {
-    for (const settle of [...this.pending.values()]) settle('deny', why);
+    for (const { settle } of [...this.pending.values()]) settle('deny', why);
+  }
+
+  /** A typed message while a question waits is its answer. Returns whether one was waiting. */
+  answerTyped(text) {
+    const waiting = [...this.pending.values()].filter((p) => p.questions);
+    for (const p of waiting) p.settle('answer', 'You answered in the chat.', typedAnswers(text, p.questions));
+    return waiting.length > 0;
   }
 }

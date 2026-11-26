@@ -28,6 +28,7 @@ export const SCENARIOS = {
   plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
   sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
   trash: [{ say: 'Cleaning up.\n' }, { tool: 'Bash', input: { command: 'rm old-notes.txt' } }],
+  ask: [{ say: 'One question first.\n' }, { tool: 'AskUserQuestion', input: { questions: [{ question: 'Where does the plant info come from?', header: 'Data', multiSelect: false, options: [{ label: 'Typed in by hand', description: 'Fits in one day' }, { label: 'Sensors', description: 'Needs hardware' }] }] } }],
   next: [{ say: 'Done looking.\nNext: Run the tests\n' }, { say: '- **Next:** Fix the typo in notes.txt\nNext: Run the tests\n' }],
 };
 // Do an Edit for real (tests run in a temp folder) and report it the way Claude Code does.
@@ -56,7 +57,7 @@ function deniedByRule(rules, name, input) {
   });
 }
 
-export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey } = {}) {
+export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey, answers = [] } = {}) {
   const args = spawnOpts.args || [];
   const cwd = spawnOpts.cwd || process.cwd();
   const stdin = new PassThrough(); const stdout = new PassThrough(); const ee = new EventEmitter();
@@ -145,6 +146,8 @@ export function createFakeClaude(spawnOpts, { delayMs = 2, keySource: forcedKey 
     const answer = r.subtype === 'success' ? r.response : { behavior: 'deny', message: r.error };
     if (answer?.behavior !== 'allow') return { ok: false, why: answer?.message || 'Denied' };
     if (name === 'ExitPlanMode') mode = 'default'; // like Claude Code: an approved plan leaves plan mode
+    // Like Claude Code: the question tool needs the answers back in its input, or nothing comes through.
+    if (name === 'AskUserQuestion') { answers.push(answer.updatedInput?.answers ?? null); if (!answer.updatedInput?.answers) return { ok: false, why: 'No answer came back' }; }
     return name === 'Edit' ? applyEdit(cwd, input) : { ok: true };
   }
 
