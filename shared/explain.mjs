@@ -4,6 +4,7 @@
 import path from 'node:path';
 import { redact } from './redact.mjs';
 import { describeTool, commandEffect, EFFECTS } from './describe.mjs';
+import { stripHeredocs, splitTopLevel, maskQuotes } from './shell.mjs';
 
 const GLOSS = [
   [/^git\s+pull\b/, 'download the latest changes'],
@@ -19,6 +20,8 @@ const GLOSS = [
   [/^rm\b/, 'DELETE files'],
   [/^(ls|pwd)\b/, 'list files'],
   [/^cat\b/, 'show a file'],
+  [/^sed\s+(-\S+\s+)*-i/, 'change a file'],
+  [/^sed\b/, 'edit text'],
   [/^cd\b/, 'go into a folder'],
   [/^(npm|npx)\s+(install|i)\b/, 'install packages'],
   [/^(npm|npx)\b/, 'run a Node tool'],
@@ -44,13 +47,30 @@ const BLOCK_OPENER = /^(do|then|else|\{|\()\s+/;
 const BLOCK_ONLY = /^(do|done|then|else|fi|esac|\{|\}|\(|\))(\s*[<>].*)?$/;
 
 export function splitSteps(command) {
-  return String(command).split(/\s*(?:&&|\|\||;|\n)\s*/)
+  return splitTopLevel(stripHeredocs(command).command) // file text written with <<EOF is data, not steps
     .map((s) => { let t = s.trim(); while (BLOCK_OPENER.test(t)) t = t.replace(BLOCK_OPENER, ''); return t; })
     .filter((s) => s && !BLOCK_ONLY.test(s));
 }
 
+// `cat > f`, `echo x >> f`, `tee f`: the step writes that file. Returns 'write', 'add' or ''.
+const WRITERS = /^(cat|echo|printf|tee)\b/;
+function writes(bare) {
+  if (!WRITERS.test(bare)) return '';
+  const m = maskQuotes(bare);
+  if (/^tee\b/.test(m)) return /\s-\w*a/.test(m) ? 'add' : 'write';
+  if (/(^|\s)\d?>>\s*[^\s&]/.test(m)) return 'add';
+  return /(^|\s)\d?>(?![>&])\s*\S/.test(m) ? 'write' : '';
+}
+
+// The files `cat a b > c` reads (words before the first redirect), so the card names them too.
+const catSources = (bare) => (/^cat\b/.test(bare) ? (bare.match(/"[^"]*"|'[^']*'|\S+/g) || []).slice(1) : [])
+  .reduce((acc, x) => { if (acc.stop || /^\d?[<>|&]/.test(x)) acc.stop = true; else if (!/^-/.test(x)) acc.push(x); return acc; }, Object.assign([], { stop: false }));
+
 export function glossStep(step) {
   const bare = step.replace(/^(\w+=\S+\s+)+/, '');
+  const w = writes(bare);
+  if (w && catSources(bare).length) return w === 'add' ? 'add a file onto another' : 'copy files'; // cat .env > out.txt reads .env
+  if (w) return w === 'add' ? 'add to a file' : 'write a file';
   for (const [re, words] of GLOSS) if (re.test(bare)) return words;
   return `run "${bare.split(/\s+/)[0]}"`;
 }
@@ -62,6 +82,15 @@ const unquote = (w) => w.replace(/^(['"])(.*)\1$/, '$2');
 export function stepTarget(step) {
   const words = (step.replace(/^(sudo\s+)?(\w+=\S+\s+)*/, '').match(/"[^"]*"|'[^']*'|\S+/g) || []);
   const [cmd, ...rest] = words;
+  const clip = (t) => redact(t.length > 70 ? `${t.slice(0, 69)}…` : t);
+  if (writes(words.join(' '))) { // the file after > or >>, or tee's first file
+    if (cmd === 'tee') { const f = rest.find((x) => !/^-/.test(x)); return f ? clip(unquote(f)) : ''; }
+    const at = words.findIndex((x) => /^\d?>{1,2}/.test(x));
+    const f = unquote(words[at].replace(/^\d?>{1,2}/, '') || words[at + 1] || '');
+    const from = catSources(words.join(' ')).map(unquote);
+    return f ? clip(from.length ? `${from.join(', ')} → ${f}` : f) : '';
+  }
+  if (cmd === 'sed' && /^-\S*i/.test(rest.find((x) => /^-/.test(x)) || '')) return clip(unquote(rest.at(-1) || ''));
   if (!cmd || !TARGETED.test(cmd)) return '';
   const stop = rest.findIndex((w) => /^\d?[<>|&]/.test(w)); // a redirect like > out.txt isn't the target
   let args = (stop < 0 ? rest : rest.slice(0, stop)).filter((w) => !/^-/.test(w)).map(unquote);

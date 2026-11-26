@@ -28,6 +28,7 @@ export const SCENARIOS = {
   web: [{ say: 'Why: you asked which plants need shade.\n' }, { tool: 'WebFetch', input: { url: 'https://example.org/shade-plants', prompt: 'List shade plants' } }],
   bigjob: [{ say: 'This is a big job, so I am handing it to Claude Code.\nHandoff: Build a watering schedule page for the garden app & add tests.\n' }],
   bigread: [{ tool: 'Read', input: { file_path: 'notes.txt' } }, { say: 'Big job.\nHandoff: Rewrite every page.\n' }],
+  bigrun: [{ tool: 'Bash', input: { command: 'npm test' } }, { say: 'Big job.\nHandoff: Rewrite every page.\n' }],
   // Like Claude: several searches in one go, each asking at the same moment.
   searches: [{ say: 'Why: you asked which plants grow in shade.\n' }, { together: ['best shade plants', 'shade perennials', 'hostas ferns astilbe'].map((query) => ({ tool: 'WebSearch', input: { query } })) }],
   peek: [{ say: 'Why: you asked what sits next to this project.\n' }, { tool: 'Bash', input: { command: 'ls ..' }, readOnly: true }],

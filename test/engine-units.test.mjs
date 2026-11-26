@@ -72,7 +72,7 @@ test('explain: each card step in plain words, with the file it touches', () => {
   assert.deepEqual(ex.items.map((i) => i.target), ['', '.claude/skills/demo', 'kit/SKILL.md → .claude/skills/demo/', 'build dir']);
   assert.deepEqual(ex.items.map((i) => i.danger), [false, false, false, true]);
   assert.equal(ex.items.length, ex.steps.length, 'every step still listed');
-  assert.equal(explainToolCall('Bash', { command: 'chmod +x run.sh && cat .env > out.txt' }).items[1].target, '.env');
+  assert.equal(explainToolCall('Bash', { command: 'chmod +x run.sh && cat .env > out.txt' }).items[1].target, '.env → out.txt', 'the file it reads is named too');
 });
 
 test('explain: a shell loop lists its real steps, not its keywords', () => {

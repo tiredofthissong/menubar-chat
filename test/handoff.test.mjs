@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { pullHandoff, handoffUrl, isHandoffLink, HANDED, NOT_OPENED } from '../engine/handoff.mjs';
 import { createHandoffOpener } from '../app/handoff-open.mjs';
+import { looksInside } from '../policy/devmode.mjs';
 import { createHelper } from '../engine/helper.mjs';
 import { Budget } from '../usage/budget.mjs';
 import { KEYCHAIN_SERVICE, buildQueryOptions } from '../engine/options.mjs';
@@ -71,12 +72,26 @@ test('end to end: a big job opens Claude Code with the request; the chat shows o
   assert.equal(c.of('approval').length, 0);
 });
 
-test('end to end: after Claude read a file, it never opens by itself; the next turn starts fresh', async (t) => {
+test('end to end: reading this project first still opens it; running a command first does not', async (t) => {
   const { c, ask, helper } = setup(t);
-  await helper.handleCommand({ type: 'setMode', project: 'garden', mode: 'dev' }); // the read inside the folder goes ahead
+  await helper.handleCommand({ type: 'setMode', project: 'garden', mode: 'dev' }); // both steps go ahead in the folder
   await ask('#bigread');
-  const [h] = c.of('handoff');
+  assert.equal(c.of('handoff')[0].auto, true, 'Claude looked at a file here to size the job (Bromo, Nov 26)');
+  await ask('#bigrun');
+  const h = c.of('handoff')[1];
   assert.equal(h.auto, false); assert.equal(h.line, NOT_OPENED);
   await ask('#bigjob');
-  assert.equal(c.of('handoff')[1].auto, true, 'a turn with no tools opens it');
+  assert.equal(c.of('handoff')[2].auto, true, 'the next turn starts fresh');
+});
+
+test('hand-off: only reading and searching inside the folder counts as looking', () => {
+  const root = '/work/garden';
+  assert.equal(looksInside('Read', { file_path: '/work/garden/garden.js' }, root), true);
+  assert.equal(looksInside('Grep', { pattern: 'water' }, root), true);
+  assert.equal(looksInside('Bash', { command: 'ls -la && cat notes.txt' }, root), true);
+  assert.equal(looksInside('Read', { file_path: '/Users/me/.ssh/config' }, root), false);
+  assert.equal(looksInside('Bash', { command: 'cat ../other/notes.txt' }, root), false);
+  assert.equal(looksInside('Bash', { command: 'npm test' }, root), false);
+  assert.equal(looksInside('WebFetch', { url: 'https://example.com' }, root), false);
+  assert.equal(looksInside('Write', { file_path: '/work/garden/x.js' }, root), false);
 });

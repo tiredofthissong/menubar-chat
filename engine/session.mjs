@@ -15,6 +15,7 @@ import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
 import { pullHandoff, handoffUrl, HANDED, NOT_OPENED } from './handoff.mjs';
+import { looksInside } from '../policy/devmode.mjs';
 import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
 
@@ -103,7 +104,8 @@ export class ProjectSession {
       const text = pullHandoff(pullNext(ev.text, this.next), this.hand); // "Next:" lines become buttons; a "Handoff:" line opens Claude Code
       if (text) this.emit({ ...ev, text });
     }
-    if (facts.toolStarted) { this.toolsRan = true; this.setStatus('working', facts.toolStarted.slice(0, 60)); }
+    if (facts.toolStarted) this.setStatus('working', facts.toolStarted.slice(0, 60));
+    for (const t of facts.toolCalls || []) if (!looksInside(t.name, t.input, this.project.path)) this.toolsRan = true; // reading here is fine
     if (facts.requestTokens !== undefined) this.meter.onRequestTokens(facts.requestTokens);
     for (const r of facts.toolResults || []) this.onToolResult(r);
     if (facts.result) this.onResult(facts.result);
@@ -125,7 +127,7 @@ export class ProjectSession {
     const { spent: spentUsd, capUsd } = this.budget;
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
     if (this.next.length) this.emit(event('suggestions', { items: this.next }));
-    const url = handoffUrl(this.hand.prompt, this.project.path); // after a tool ran, it never opens by itself
+    const url = handoffUrl(this.hand.prompt, this.project.path); // after more than reading here, it never opens by itself
     if (url) this.emit(event('handoff', { prompt: this.hand.prompt, url, auto: !this.toolsRan, line: this.toolsRan ? NOT_OPENED : HANDED }));
     this.next = [];
     this.emit(event('turn_done', { ok: res.ok, approvals: this.approvals, costUsd: res.totalCostUsd ?? 0, spentUsd, capUsd }));

@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { commandEffect } from '../shared/describe.mjs';
 import { splitSteps } from '../shared/explain.mjs';
+import { stripHeredocs, pathView, sedReachesOut, MATHS } from '../shared/shell.mjs';
 
 const READS = new Set(['Read', 'Glob', 'Grep', 'TodoWrite', 'BashOutput']);
 const EDITS = { Edit: 'file_path', MultiEdit: 'file_path', Write: 'file_path', NotebookEdit: 'notebook_path' };
@@ -79,7 +80,12 @@ function lookingSubstitutions(cmd, root) {
 /** Does a command stay in the project folder, with nothing on the always-ask list? */
 export function commandStaysIn(command, root, effect) {
   if (effect !== 'looks' && effect !== 'runs') return false; // deletes, the internet and the unknown ask
-  const cmd = lookingSubstitutions(String(command ?? ''), root);
+  // File text written with <<'EOF' is used exactly as typed, so only the command around it counts.
+  // Without quotes (<<EOF) the shell would run any $(...) or `...` in it, so those ask.
+  const { command: bare, bodies } = stripHeredocs(command);
+  if (bodies.some((b) => !b.quoted && /\$\(|`/.test(b.body)) || sedReachesOut(bare)) return false;
+  if (/<</.test(String(command)) && MATHS.test(String(command))) return false; // maths next to file text: ask
+  const cmd = lookingSubstitutions(bare, root);
   if (cmd === null) return false;
   const words = outsideQuotes(cmd);
   if (!cmd.trim() || words === null || ASK_WORD.test(words) || RISKY_GIT.test(words) || RISKY_SHAPES.some((re) => re.test(cmd))) return false;
@@ -89,7 +95,7 @@ export function commandStaysIn(command, root, effect) {
 
 /** Does a command name a place outside the project folder (.., ~, $HOME, or a path elsewhere)? */
 export function pointsOutside(command, root) {
-  const cmd = String(command ?? '');
+  const cmd = pathView(stripHeredocs(command).command); // not quoted page text like '<h1>…</h1>'
   if (/(^|[\s'"=:/])\.\.(\/|\s|$|['"])/.test(cmd) || /(^|[\s=:])~/.test(cmd) || /\$\{?(HOME|PWD|OLDPWD)\b/.test(cmd)) return true;
   const paths = cmd.match(/(?:^|[\s=:<>'"(])(\/[^\s'";|&<>)]*)/g) || [];
   return !paths.map((m) => m.replace(/^[\s=:<>'"(]/, '')).every((p) => p === '/dev/null' || insideProject(p, root, { self: true }));
@@ -105,6 +111,14 @@ export function devModeAllows(toolName, input = {}, root, card = {}) {
   if (Object.hasOwn(EDITS, toolName)) return insideProject(i[EDITS[toolName]], root);
   if (toolName === 'Bash') return card.danger !== true && commandStaysIn(i.command, root, card.effect);
   return false; // the web, connected apps, helpers, skills, plans and anything new: Claude asks
+}
+
+/** Does this step only read or search inside the project folder? (Nothing from the web or elsewhere.) */
+export function looksInside(toolName, input = {}, root) {
+  const i = input || {};
+  if (toolName === 'TodoWrite') return true;
+  if (READS.has(toolName)) return !looksOutside(toolName, i, root);
+  return toolName === 'Bash' && commandEffect(splitSteps(i.command), false) === 'looks' && commandStaysIn(i.command, root, 'looks');
 }
 
 /**
