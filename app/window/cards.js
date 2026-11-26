@@ -40,8 +40,14 @@ window.ChatCards = (() => {
     if (!l || typeof l.line !== 'string' || typeof open !== 'function') return null;
     const box = el('div', 'card-learn'); box.append(el('span', 'card-learn-line', l.line));
     // Only what this chat hasn't shown yet: a lesson, and a docs page opened at the passage that fits.
-    if (l.academy) { const b = button('Learn more', 'btn btn-small btn-quiet', () => open(l.academy)); b.title = `The lesson on this, in ${l.course} on Claude Academy`; box.append(b); }
-    if (l.docs) { const b = button('Docs', 'btn btn-small btn-quiet', () => open(l.docs)); b.title = 'The Claude Code docs, opened at the part about this, highlighted'; box.append(b); }
+    if (l.academy) {
+      const b = button('Learn more', 'btn btn-small btn-link', () => open(l.academy));
+      b.title = `The lesson on this, in ${l.course} on Claude Academy`; box.append(b);
+    }
+    if (l.docs) {
+      const b = button('Docs', 'btn btn-small btn-link', () => open(l.docs));
+      b.title = 'The Claude Code docs, opened at the part about this, highlighted'; box.append(b);
+    }
     return box;
   }
 
@@ -50,7 +56,9 @@ window.ChatCards = (() => {
   function question(project, card, act) {
     const c = el('article', 'card card-question');
     c.setAttribute('aria-label', `Claude is asking you a question, in ${project}`);
-    c.append(kicker(project, () => card.questions.map((q) => [q.question, ...q.options.map((o, i) => `${i + 1}. ${o.label}${o.note ? ` (${o.note})` : ''}`)].join('\n')).join('\n\n'), act));
+    const n = card.questions.length;
+    const asText = () => card.questions.map((q) => [q.question, ...q.options.map((o, i) => `${i + 1}. ${o.label}${o.note ? ` (${o.note})` : ''}`)].join('\n'));
+    c.append(kicker(el('p', 'card-title', n > 1 ? `Claude has ${n} questions for you` : 'Claude has a question for you'), () => asText().join('\n\n'), act));
     const qs = card.questions; const picks = qs.map(() => new Set());
     const quick = qs.length === 1 && qs[0].multiSelect !== true;
     const send = button('Send answers', 'btn', () => act.answer(`a:${picks.map((s) => [...s].sort().join(',')).join(';')}`));
@@ -95,9 +103,9 @@ window.ChatCards = (() => {
     return m;
   }
 
-  // The kicker line, with a copy button at its end that copies the whole card as plain text.
-  function kicker(project, text, act) {
-    const k = el('div', 'card-kicker'); k.append(el('span', '', `Claude is asking · ${project}`));
+  // The card's first line, with a copy button at its end that copies the whole card as plain text.
+  function kicker(head, text, act) {
+    const k = el('div', 'card-kicker'); k.append(head);
     k.append(copyButton(text, act.copy)); return k;
   }
   function cardText(card, said) {
@@ -114,14 +122,15 @@ window.ChatCards = (() => {
     c.setAttribute('aria-label', `Claude is asking you, in ${project}`);
     const list = steps(card);
     // One plain line first. A chained command lists every step below it, so the line only counts them.
-    const said = card.what ? `Claude wants to ${card.what}${list?.open ? ':' : '.'}` : (list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`));
-    c.append(kicker(project, () => cardText(card, said), act), el('p', 'card-ask', said));
+    const said = card.what ? `Claude wants to ${card.what}${list?.open ? ':' : '.'}`
+      : (list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`));
+    c.append(kicker(el('p', 'card-ask', said), () => cardText(card, said), act));
     const mt = meta(card, said); if (mt) c.append(mt);
-    if (card.what) c.append(el('p', card.reason ? 'card-why' : 'card-why muted', card.reason ? `Why: ${card.reason}` : 'Why: Claude didn\'t say. If that matters, Deny and ask.'));
+    const why = card.reason ? `Why: ${card.reason}` : 'Why: Claude didn\'t say. If that matters, Deny and ask.';
+    if (card.what) c.append(el('p', card.reason ? 'card-why' : 'card-why muted', why));
     if (list) c.append(list.ol);
     if (danger) c.append(el('p', 'card-warn', 'This deletes files. Deleted files may not come back. Move to Trash keeps them in your Mac\'s Trash.'));
     const ex = exact(card, act.copy); if (ex) c.append(ex);
-    const lm = learn(card, act.learn); if (lm) c.append(lm);
     const row = el('div', 'card-actions');
     // Same class for every answer, and no autofocus: nothing is pre-selected.
     row.append(button('Deny', 'btn', () => act.answer('deny')));
@@ -130,6 +139,7 @@ window.ChatCards = (() => {
     if (card.hour === true) row.append(button('Allow for an hour', 'btn', () => act.answer('allow_hour')));
     row.append(button(danger ? 'Delete for good' : 'Allow once', 'btn', () => act.answer('allow')));
     c.append(row);
+    const lm = learn(card, act.learn); if (lm) c.append(lm); // the tip comes last, a quiet footnote
     return c;
   }
 

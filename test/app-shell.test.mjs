@@ -44,7 +44,7 @@ test('window: strict content policy, plain script, no innerHTML', () => {
   const html = read('app/window/index.html');
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'/);
   assert.doesNotMatch(html, /<script>(?!<\/script>)/, 'no inline script');
-  for (const f of ['app/window/app.js', 'app/window/markdown.js', 'app/window/log.js', 'app/window/cards.js', 'app/window/dom.js', 'app/window/scroll.js']) {
+  for (const f of ['app/window/app.js', 'app/window/markdown.js', 'app/window/log.js', 'app/window/cards.js', 'app/window/dom.js', 'app/window/scroll.js', 'app/window/panel.js', 'app/window/usage-panel.js', 'app/window/github-row.js']) {
     assert.doesNotMatch(code(f), /innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/, f);
   }
 });
@@ -64,7 +64,7 @@ test('one chat box and no shell box; the proving checklist is gone', () => {
   assert.equal((html.match(/<input\b/g) || []).length, 0);
   assert.doesNotMatch(html, /proving|checks/);
   const order = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['dom.js', 'scroll.js', 'markdown.js', 'log.js', 'cards.js', 'github-row.js', 'panel.js', 'app.js'], 'helpers load before the scripts that use them');
+  assert.deepEqual(order, ['dom.js', 'scroll.js', 'markdown.js', 'log.js', 'cards.js', 'github-row.js', 'usage-panel.js', 'panel.js', 'app.js'], 'helpers load before the scripts that use them');
 });
 
 test('styles follow the design rules', () => {

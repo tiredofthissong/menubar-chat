@@ -23,7 +23,8 @@ window.ChatDom = (() => {
     svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('width', '14'); svg.setAttribute('height', '14'); svg.setAttribute('aria-hidden', 'true');
     for (const [x, y] of [[5, 5], [2, 2]]) {
       const r = document.createElementNS(NS, 'rect');
-      for (const [k, v] of Object.entries({ x, y, width: 9, height: 9, rx: 1.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4 })) r.setAttribute(k, String(v));
+      const attrs = { x, y, width: 9, height: 9, rx: 1.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4 };
+      for (const [k, v] of Object.entries(attrs)) r.setAttribute(k, String(v));
       svg.append(r);
     }
     b.append(svg); return b;

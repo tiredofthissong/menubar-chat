@@ -5,22 +5,23 @@
 window.ChatLog = (() => {
   const { $, el, button, copyButton } = window.ChatDom;
   const S = window.ChatScroll; const MD = window.ChatMarkdown;
-  const EMPTY = 'Ask Claude to do something in this project, in your own words. Anything that changes a file or runs a command asks you first, except inside this folder in Dev mode. Pasted Terminal lines work too.';
-  const STARTERS = ['Explain what this project does, in plain words.', 'Plan a small improvement first, without changing anything.', 'What should I work on next here?'];
+  const EMPTY = 'Say it in your own words, or paste Terminal lines. Changes and commands ask you first (in Dev mode, only outside this folder).';
+  const STARTERS = ['Explain what this project does, in plain words.', 'Plan a small improvement first, without changing anything.',
+    'What should I work on next here?'];
 
   const logs = new Map(); const bubble = new Map(); const sources = new WeakMap(); const undos = new Map();
   let current = null; let stick = true;
   const jump = button('Jump to latest', 'jump btn btn-small'); jump.hidden = true;
 
   function logFor(project) {
-    if (!logs.has(project)) { const box = el('div', 'project-log'); box.append(emptyState()); logs.set(project, box); }
+    if (!logs.has(project)) { const box = el('div', 'project-log'); box.append(emptyState(project)); logs.set(project, box); }
     return logs.get(project);
   }
   // A new chat: the hint, and a few ways to start. A starter fills the box; nothing goes until you press Send.
-  function emptyState() {
-    const box = el('div', 'empty'); box.append(el('p', '', EMPTY));
+  function emptyState(project) {
+    const box = el('div', 'empty'); box.append(el('p', 'empty-title', `What's next in ${project}?`), el('p', 'empty-note', EMPTY));
     const row = el('div', 'starters'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Ways to start');
-    for (const s of STARTERS) row.append(button(s, 'btn btn-small btn-quiet', () => fill?.(s)));
+    for (const s of STARTERS) row.append(button(s, 'btn btn-quiet btn-row', () => fill?.(s)));
     box.append(row); return box;
   }
   function toBottom() { const log = $('log'); log.scrollTop = log.scrollHeight; stick = true; jump.hidden = true; }
@@ -78,7 +79,7 @@ window.ChatLog = (() => {
   function next(project, items, pick) {
     endReply(project);
     const row = el('div', 'next'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Suggested next steps');
-    for (const item of items) row.append(button(item, 'btn btn-small btn-quiet', () => pick(item)));
+    for (const item of items) row.append(button(item, 'btn btn-quiet btn-row', () => pick(item)));
     add(project, row);
   }
 
@@ -114,11 +115,13 @@ window.ChatLog = (() => {
     requestAnimationFrame(() => {
       queued = false;
       const log = $('log'); const cards = $('cards'); const notice = $('notice');
-      const logContent = (log.firstElementChild?.offsetHeight || 0) + 24; // content plus the log's own padding
-      const cardsContent = cards.childElementCount ? cards.scrollHeight : 0;
+      const logContent = (log.firstElementChild?.offsetHeight || 0) + 32; // content plus the log's own padding
+      const cardsContent = cards.offsetHeight ? cards.scrollHeight : 0; // 0 when nothing waits
       const noticeHeight = notice.hidden ? 0 : notice.offsetHeight + 12;
-      const panels = [...document.querySelectorAll('.panel:not([hidden])')].reduce((h, p) => h + p.offsetHeight, 0);
-      const wanted = Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + panels + logContent + cardsContent + $('composer').offsetHeight);
+      // A panel lies over the conversation, so the middle needs whichever is taller.
+      const panel = [...document.querySelectorAll('.panel:not([hidden])')].reduce((h, p) => Math.max(h, p.scrollHeight), 0);
+      const bar = document.querySelector('.bar').offsetHeight; const composer = $('composer').offsetHeight;
+      const wanted = Math.ceil(bar + Math.max(panel, logContent) + cardsContent + noticeHeight + composer);
       if (sizeChanged(wanted)) api.fit(wanted);
     });
   }

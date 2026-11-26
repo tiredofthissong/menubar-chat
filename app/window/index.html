@@ -11,32 +11,41 @@
 <body>
   <div class="shell">
     <main class="chat" aria-label="Chat">
+      <!-- One line: where you are (project and its tag) on the left, today's spend on the right. -->
       <header class="bar">
-        <button type="button" id="project" class="project-btn" aria-expanded="false" aria-controls="panel-projects" title="Switch project, pick up a past chat, work or personal">Project</button>
-        <span id="tag" class="pill">work</span>
-        <select id="mode" class="pill pill-quiet mode-select" aria-label="Mode" title="Every change asks you first">
-          <option value="default">Ask me first</option>
-          <option value="plan">Plan first</option>
-          <option value="dev">Dev mode</option>
-        </select>
+        <button type="button" id="project" class="bar-btn project-btn" aria-expanded="false" aria-controls="panel-projects"
+          title="Switch project, pick up a past chat, work or personal">Project</button>
+        <span id="tag" class="tag">work</span>
         <span class="spacer"></span>
-        <button type="button" id="spend" class="meter meter-btn num" aria-expanded="false" aria-controls="panel-usage" aria-live="polite">$0.00 of $5 today</button>
+        <button type="button" id="spend" class="bar-btn meter num" aria-expanded="false" aria-controls="panel-usage"
+          aria-live="polite">$0.00 of $5 today</button>
       </header>
 
-      <div id="notice" class="notice" role="status" hidden></div>
+      <!-- The conversation, or a panel laid over it. Only this part scrolls. -->
+      <div class="stage">
+        <section id="log" class="log" tabindex="0" aria-live="polite" aria-label="Conversation"></section>
+        <section id="panel-projects" class="panel" aria-label="Projects and chats" hidden></section>
+        <section id="panel-usage" class="panel" aria-label="Usage" hidden></section>
+      </div>
 
-      <section id="panel-projects" class="panel" aria-label="Projects and chats" hidden></section>
-      <section id="panel-usage" class="panel" aria-label="Usage" hidden></section>
-
-      <section id="log" class="log" tabindex="0" aria-live="polite" aria-label="Conversation"></section>
-
+      <!-- What waits on you sits right above the chat box, one card at a time. -->
       <section id="cards" class="cards" aria-label="Waiting on you"></section>
+
+      <div id="notice" class="notice" role="status" hidden></div>
 
       <form id="composer" class="composer" autocomplete="off">
         <label class="sr-only" for="input">Message</label>
         <textarea id="input" rows="2" placeholder="Ask Claude to do something in this project…" aria-describedby="keys"></textarea>
         <p id="keys" class="sr-only">Enter sends. Shift-Enter starts a new line. Esc tucks the window away.</p>
-        <div class="composer-actions">
+        <div class="composer-row">
+          <span class="select-wrap">
+            <select id="mode" class="bar-btn mode-select" aria-label="Mode" title="Every change asks you first">
+              <option value="default">Ask me first</option>
+              <option value="plan">Plan first</option>
+              <option value="dev">Dev mode</option>
+            </select>
+          </span>
+          <span id="status" class="status" aria-live="polite"></span>
           <button type="button" id="stop" class="btn btn-quiet" disabled>Stop</button>
           <button type="submit" id="send" class="btn btn-primary">Send</button>
         </div>
@@ -50,6 +59,7 @@
   <script src="log.js" defer></script>
   <script src="cards.js" defer></script>
   <script src="github-row.js" defer></script>
+  <script src="usage-panel.js" defer></script>
   <script src="panel.js" defer></script>
   <script src="app.js" defer></script>
 </body>

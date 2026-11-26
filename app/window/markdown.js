@@ -8,7 +8,10 @@
 'use strict';
 (function (root) {
   // ---- Inline: **bold**, *italic*, `code`, [text](url), ~~strike~~ ----
-  const INLINE = /(`+)([\s\S]*?[^`])\1(?!`)|\*\*(?=\S)([\s\S]*?\S)\*\*|__(?=\S)([\s\S]*?\S)__|~~(?=\S)([\s\S]*?\S)~~|\*(?=[^\s*])([\s\S]*?[^\s*])\*|(?<![\w])_(?=[^\s_])([\s\S]*?[^\s_])_(?![\w])|\[([^\]\n]+)\]\(([^)\s]+)\)/;
+  const INLINE = new RegExp([ // code, bold, bold, strike, italic, italic, [text](url): one capture group each, in this order
+    /(`+)([\s\S]*?[^`])\1(?!`)/, /\*\*(?=\S)([\s\S]*?\S)\*\*/, /__(?=\S)([\s\S]*?\S)__/, /~~(?=\S)([\s\S]*?\S)~~/,
+    /\*(?=[^\s*])([\s\S]*?[^\s*])\*/, /(?<![\w])_(?=[^\s_])([\s\S]*?[^\s_])_(?![\w])/, /\[([^\]\n]+)\]\(([^)\s]+)\)/,
+  ].map((r) => r.source).join('|'));
 
   function inline(text) {
     const out = [];

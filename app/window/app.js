@@ -3,7 +3,7 @@
 'use strict';
 (() => {
   const api = window.menubarChat;
-  const { $, button } = window.ChatDom;
+  const { $, el, button } = window.ChatDom;
   const Log = window.ChatLog; const Cards = window.ChatCards; const Panel = window.ChatPanel;
 
   const state = { projects: [], current: null, busy: new Set(), modes: new Map(), cards: new Map(), chat: new Map(), spent: 0, cap: 5, model: 'Sonnet' };
@@ -14,10 +14,24 @@
   };
   const said = (r) => { if (r && r.ok === false) notice(r.error || r.text, true); };
 
+  // One line above the chat box. A plain note clears itself; a problem stays until you close it.
+  let noticeTimer = null;
   function notice(text, bad) {
-    const n = $('notice');
-    if (!text) { n.hidden = true; return; }
-    n.textContent = text; n.className = bad ? 'notice bad' : 'notice'; n.hidden = false;
+    const n = $('notice'); clearTimeout(noticeTimer);
+    if (!text) { n.hidden = true; n.replaceChildren(); return; }
+    n.replaceChildren(el('span', 'notice-text', text)); n.className = bad ? 'notice bad' : 'notice'; n.hidden = false;
+    if (bad) n.append(button('Close', 'btn btn-small btn-quiet', () => notice('')));
+    else noticeTimer = setTimeout(() => notice(''), 5000);
+  }
+  // What's happening in this project, in two words, next to Send; and how many cards wait behind this one.
+  function showStatus() {
+    const mine = [...state.cards.values()].filter((c) => c.project === state.current).length;
+    const others = new Set([...state.cards.values()].map((c) => c.project).filter((p) => p !== state.current));
+    const here = mine ? 'Waiting on you' : state.busy.has(state.current) ? 'Claude is working…' : '';
+    const away = others.size ? `${here ? 'Also waiting' : 'Waiting'} in ${[...others].join(', ')}` : '';
+    $('status').textContent = [here, away].filter(Boolean).join(' · '); $('status').title = $('status').textContent;
+    const q = $('cards').querySelector('.queue') || $('cards').appendChild(el('p', 'queue'));
+    q.textContent = mine > 1 ? `1 of ${mine} waiting. The next one shows when you answer this one.` : ''; q.hidden = mine < 2;
   }
   function showMode() {
     const m = state.modes.get(state.current) || 'default';
@@ -31,6 +45,7 @@
   function setBusy(project, busy) {
     if (busy) state.busy.add(project); else state.busy.delete(project);
     if (project === state.current) $('stop').disabled = !busy;
+    showStatus();
   }
 
   function selectProject(name) {
@@ -40,7 +55,7 @@
     $('tag').textContent = p?.tag === 'personal' ? 'personal' : 'work';
     $('stop').disabled = !state.busy.has(name);
     for (const [, c] of state.cards) c.node.hidden = c.project !== name;
-    showMode(); Log.show(name);
+    showMode(); Log.show(name); showStatus();
     if (state.warm) api.warm(name).catch(() => {}); // start Claude Code now, so the first reply is quicker
   }
 
@@ -66,10 +81,10 @@
     });
     node.hidden = project !== state.current;
     state.cards.set(card.id, { node, project });
-    $('cards').append(node);
+    $('cards').append(node); showStatus();
     if (project !== state.current) notice(`Waiting on you in ${project}.`);
   }
-  function closeCard(id) { state.cards.get(id)?.node.remove(); state.cards.delete(id); }
+  function closeCard(id) { state.cards.get(id)?.node.remove(); state.cards.delete(id); showStatus(); }
 
   const NOT_SENT = new Set(['empty', 'slash-typo', 'slash-unknown', 'slash-app', 'slash-terminal']);
   // A mistyped /command: the one-line fix comes with a button that puts the right one in the box.
@@ -88,17 +103,22 @@
       case 'text': Log.text(p, ev.text); break;
       case 'tool': Log.line(p, ev.line); break;
       case 'approval': openCard(p, ev.card); break;
-      case 'approval_closed': closeCard(ev.id); if (ev.decision === 'merged') break; Log.line(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.')); break;
+      case 'approval_closed':
+        closeCard(ev.id); if (ev.decision === 'merged') break;
+        Log.line(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.')); break;
       case 'blocked': Log.line(p, `Blocked: ${ev.plain}`, 'line-blocked'); break;
       case 'tool_failed': Log.line(p, ev.text); break;
       case 'hint': hint(p, ev); break;
       case 'handoff': Log.line(p, ev.line); break;
       case 'suggestions': Log.next(p, (ev.items || []).slice(0, 3), (item) => sendText(p, item)); break;
-      case 'past': Log.reset(p); Log.past(p, ev.turns || []); Log.line(p, 'Picked up this chat. Anything you send carries on from here.'); state.chat.delete(p); break;
+      case 'past': Log.reset(p); Log.past(p, ev.turns || []); state.chat.delete(p);
+        Log.line(p, 'Picked up this chat. Anything you send carries on from here.'); break;
       case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.reset(p); Log.line(p, 'New chat started.'); state.chat.delete(p); } break;
       case 'change': Log.change(p, ev, (id) => api.undo(p, id).then(said)); break;
       case 'undo_result': if (ev.ok) Log.undone(ev.id); Log.line(p, ev.text, ev.ok ? '' : 'line-blocked'); break;
-      case 'mode': state.modes.set(p, ev.mode); if (p === state.current) showMode(); Log.line(p, `Mode: ${ev.label}. ${MODE[ev.mode]?.[1] || ''}`.trim()); break;
+      case 'mode':
+        state.modes.set(p, ev.mode); if (p === state.current) showMode();
+        Log.line(p, `Mode: ${ev.label}. ${MODE[ev.mode]?.[1] || ''}`.trim()); break;
       case 'why': if (!ev.seen) Log.line(p, 'No "Why:" line came before this change.'); break;
       case 'usage': state.chat.set(p, { chatUsd: ev.chatUsd, contextPct: ev.contextPct }); Panel.refresh(); break;
       case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd); break;
@@ -113,7 +133,8 @@
     const first = state.projects.find((x) => !x.away);
     if (first) { selectProject(first.name); return true; }
     state.current = null; $('project').textContent = 'Project'; $('send').disabled = true; $('input').disabled = true;
-    notice(state.projects.length ? 'Your projects are put away on GitHub. Click Project and pick one to copy it back.' : 'No projects yet. Click Project, then Add a folder.', true);
+    notice(state.projects.length ? 'Your projects are put away on GitHub. Click Project and pick one to copy it back.'
+      : 'No projects yet. Click Project, then Add a folder.', true);
     return false;
   }
 

@@ -9,8 +9,9 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Part | State |
 |---|---|
 | Engine: one Claude Code session per project, through the official Claude Agent SDK, in a background helper the window talks to over Electron's own messaging (no network port) | Real, tested |
-| Three modes, picked from the menu next to the project: **Ask me first** (default), **Plan first**, and **Dev mode**, where Claude goes ahead on steps inside the project folder and still asks for anything outside it, deletes, the internet and system tools. A web lookup card in Dev mode also offers **Allow for an hour** (web lookups only, this project only, ends when you quit, switch mode or start a new chat) | Real, tested |
+| Three modes, picked from the menu next to Send: **Ask me first** (default), **Plan first**, and **Dev mode**, where Claude goes ahead on steps inside the project folder and still asks for anything outside it, deletes, the internet and system tools. A web lookup card in Dev mode also offers **Allow for an hour** (web lookups only, this project only, ends when you quit, switch mode or start a new chat) | Real, tested |
 | Copy: a copy button on every card and every reply, and card text you can select | Real, tested |
+| The window (Nov 26 revamp): one-line top bar (project, its tag, today's spend), one scrolling conversation, cards docked above the chat box one at a time, a status line by Send ("Waiting on you", "Claude is working…"), notices just above the chat box, panels laid over the conversation | Real, checked in screenshots in the cloud, needs your Mac to check |
 | Change cards: every file change shows one plain sentence, Claude's reason, the change itself one click away, and an **Undo** button | Real, tested |
 | One chat box, no Terminal: pasted Terminal lines become one command Claude runs after you allow it; `claude ...`, `!cmd` and mistyped /commands get a one-line fix | Real, tested |
 | Delete cards are red and offer **Move to Trash instead** (the delete never runs; Claude asks again to move the files to your Trash) | Real, tested |

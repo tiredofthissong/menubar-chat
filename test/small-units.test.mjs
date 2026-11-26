@@ -84,3 +84,14 @@ test('every source file is 200 lines or fewer', () => {
   walk(root);
   assert.deepEqual(over, []);
 });
+
+// The window's files stay readable: no line over 160 characters, so the 200-line budget is never met
+// by cramming several statements onto one line (Nov 26 revamp).
+test('window files keep every line to 160 characters or fewer', () => {
+  const dir = new URL('../app/window/', import.meta.url);
+  const long = [];
+  for (const f of fs.readdirSync(dir).filter((n) => /\.(js|css)$/.test(n))) {
+    fs.readFileSync(new URL(f, dir), 'utf8').split('\n').forEach((l, i) => { if (l.length > 160) long.push(`${f}:${i + 1} (${l.length})`); });
+  }
+  assert.deepEqual(long, []);
+});

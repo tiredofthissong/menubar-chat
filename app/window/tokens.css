@@ -53,6 +53,13 @@
   --press-scale: 0.97;
   --control-sm: 32px;
   --control-md: 40px;
+  --hit-extra: calc((var(--control-md) - var(--control-sm)) / 2); /* a 32px button still gets a 40px target */
+  --caret: 6px;
+  --stroke: 1.5px;
+  --scrollbar: 12px;
+  --scrollbar-inset: 3px;
+  --project-max: 220px;
+  --tray-max: 60vh;
 }
 
 @media (prefers-color-scheme: dark) {

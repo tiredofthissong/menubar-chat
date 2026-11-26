@@ -12,7 +12,9 @@ window.ChatGithubRow = (() => {
     pick.replaceChildren(new Option('Loading your repos…', '')); pick.disabled = true; note.textContent = '';
     const r = await ctx.api.listGithub();
     pick.replaceChildren();
-    if (!r?.ok) { pick.append(new Option('Your repos didn\'t load', '')); note.textContent = r?.error || 'Your repos didn\'t load. Type the repo below.'; return; }
+    if (!r?.ok) {
+      pick.append(new Option('Your repos didn\'t load', '')); note.textContent = r?.error || 'Your repos didn\'t load. Type the repo below.'; return;
+    }
     const have = new Set(ctx.projects().map((p) => String(p.repo || '').toLowerCase()).filter(Boolean));
     pick.append(new Option(r.repos.length ? `Pick a repo (${r.repos.length} found)` : 'No repos found', ''));
     for (const repo of r.repos) {

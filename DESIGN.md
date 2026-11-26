@@ -1,22 +1,36 @@
 # Design
 
-**Job:** a calm chat window that drops down from the menu bar, does one small thing in a project, and gets out of the way.
+**Job:** pop it open from the menu bar, see in one glance where this project stands and what waits on you, answer or ask, and tuck it away. Often after hours away, often mid-job, often in another project than last time.
 
-**Three words:** calm, plain, trustworthy.
+**Feels like:** calm, glanceable, sure.
+
+**Must not feel:** crowded, technical, nagging.
+
+(Revamp of Nov 26, written as the daily user: Bromo switching between Work and Personal projects all day, answering cards, glancing at spend, reading the one-line tips.)
 
 ## Choices
 
 - **Tokens:** `app/window/tokens.css`, copied from the personal design rules. Components use the semantic names only; no raw colors.
 - **Accent:** one deep teal (hue 195), used for the primary action (Send) and focus rings. Nothing else is colored except state: red for blocked steps and anything that deletes, and amber when today's spend nears the cap. Color is never the only signal: a delete step also says DELETE, and a diff line starts with + or -.
 - **Type:** the system font stack. 14px for the window (dense desktop UI), 12px for captions.
-- **Radii:** md (10px) for buttons, cards and bubbles; sm (6px) for small buttons, inputs and code; pill for tags.
+- **Radii:** md (10px) for cards, bubbles, the chat box and notices; sm (6px) for buttons, list rows, inputs and code; pill for tags.
+- **Buttons:** three ranks, never colored by meaning: primary (Send only), default (a bordered button: the card answers), quiet (a lighter border, or none for links and the bar). Every button is at least 32px tall with a 40px target (an invisible margin), card answers and list rows are a full 40px, and labels sit centered on one line. Hover only where there is a pointer.
 - **Light and dark:** both, following the Mac's setting. `npm test` checks every text and control pairing against WCAG 2.2 AA in both (4.5:1 text, 3:1 edges and focus) and that every color fits in sRGB.
-- **Layout:** one column, 480px wide. Bar (project, work or personal, mode, today's spend), the conversation, cards waiting on you, then the chat box.
+- **Layout:** one column, 480px wide, top to bottom:
+  1. **The bar, one line:** the project name (a quiet button with a caret), its tag as plain text, and today's spend on the right. Two controls in one style, nothing else.
+  2. **The stage:** the conversation, the only part that scrolls. A panel lies over it as its own surface.
+  3. **The card tray:** what waits on you, docked right above the chat box, **one card at a time**, with "1 of 3 waiting" above it when more wait. The next one shows when you answer. The tray scrolls only if a single card is taller than most of the window.
+  4. **The notice:** one line just above the chat box, never over the conversation or a panel. A plain note ("Copied.") clears itself after a few seconds; a problem stays until you press **Close**.
+  5. **The chat box:** the text box full width, then a row with the mode menu, a status line, Stop and Send.
+- **Status line** (next to Send): "Waiting on you", "Claude is working…", and "Waiting in garden-app" when a card waits in another project. Coming back after hours, it says where things stand without opening anything.
+- **Claude's replies** sit on the page, full width, without a bubble; what you typed is the one tinted bubble. Status lines in a row group tightly.
 - **Motion:** only a small press on buttons, and only when Reduce Motion is off. The menu bar icon holds still with Reduce Motion on.
 
 ## The approval card
 
 The most important screen in the app.
+
+- **How it looks (Nov 26 revamp):** a plain surface with a thin border and no shadow (red border on a delete). The first line is the one bold thing, with the copy icon at its end; the kind of step is a small tag; "Why:" in normal text; the steps; the exact command folded; then the answers, 40px tall and equal width; then the learning tip as a muted footnote with **Learn more** and **Docs** as quiet links. One gap value inside the card, a wider one before the answers. No divider lines.
 
 - **The same shape on every card** (Bromo, Nov 26), top to bottom:
   1. **"Claude wants to …"** in plain words: "change notes.txt", "open a web page on example.org", "run 3 commands, in this order". A tool's own name shows only when the app doesn't know the tool, and then it says so.
@@ -38,7 +52,7 @@ The most important screen in the app.
 
 ## Keyboard
 
-- Tab reaches every control in order: project, mode, conversation, the buttons in the conversation, the card, then the chat box. Every control shows a focus ring.
+- Tab reaches every control in order: project, spend, conversation, the buttons in the conversation, the card, the notice's Close, the chat box, mode, Stop, Send. Every control shows a focus ring.
 - Enter sends, Shift-Enter starts a new line, Esc closes an open "Show ..." first and otherwise tucks the window away.
 
 ## The conversation
@@ -52,7 +66,7 @@ The most important screen in the app.
 
 - **A change card per file change:** one plain sentence ("Changed 2 lines in notes.md. Why: fix the typo."), **Undo**, and **Show the change** for the diff. If Claude gave no reason, the conversation says so.
 - **Undo** puts the file back as it was, or removes a file Claude created. If the file changed since, it says so and changes nothing.
-- **The mode button** in the top bar reads **Ask me first** or **Plan first**. Plan first: Claude reads and plans, changes nothing, and asks before it starts; each change still gets its card.
+- **The mode menu** sits by Send (it decides how the next message runs) and reads **Ask me first**, **Plan first** or **Dev mode**; anything but Ask me first shows darker. Plan first: Claude reads and plans, changes nothing, and asks before it starts; each change still gets its card.
 
 ## Menu bar feel (milestone 3)
 
@@ -70,7 +84,7 @@ The most important screen in the app.
 
 ## Projects, Work or Personal, and usage (milestone 4)
 
-- **A panel, not a sidebar.** The plan said sidebar; at 480 pixels wide that leaves no room to chat. The project name in the top bar is a button that opens a panel under the bar instead: projects with their tag, the chats in this project (newest first, from Claude Code's own list) with **New chat**, then a Safety section. The spending figure opens a Usage panel the same way. Esc or a second click closes a panel and puts focus back on its button. A panel shrinks and scrolls before the chat box ever does.
+- **A panel, not a sidebar.** The plan said sidebar; at 480 pixels wide that leaves no room to chat. The project name in the top bar is a button that opens a panel under the bar instead: projects with their tag, the chats in this project (newest first, from Claude Code's own list) with **New chat**, then a Safety section. The spending figure opens a Usage panel the same way. Esc or a second click closes a panel and puts focus back on its button. A panel lies over the conversation (which keeps its place underneath) on its own surface with a shadow, and scrolls on its own; while it's open the card tray steps aside and the status line says what waits. Projects are grouped under **Personal** and **Work**, with "working" next to a busy one. The Usage panel leads with one big figure (today against the cap); the fine print folds under **How these numbers work**.
 - **Picking up a past chat** redraws its turns (what you typed, what Claude wrote) and says "Picked up this chat"; anything you send carries on from there.
 - **Adding a folder** opens the Mac's own folder window, so a path never comes from the page. Home, the top of the disk, system folders and key folders are refused. You then pick Work or Personal; the two answers look the same.
 - **Tags take effect at once.** Changing a tag closes that project's open chat, so the next message runs under the new rules, and a card that was waiting is denied.
@@ -80,7 +94,7 @@ The most important screen in the app.
 
 ## Learning layer and extras (milestone 5)
 
-- **One plain line on every card** says what this kind of step is ("A delete is hard to take back…"), muted and below the ask, so it never competes with Deny and Allow. **Learn more** opens the Claude Academy lesson that fits this step (not just the course). **Docs** opens the Claude Code docs at the section that fits, with the key passage highlighted (a text fragment, which Safari and Chrome both follow; a browser that doesn't still opens the right section).
+- **One plain line on every card** says what this kind of step is ("A delete is hard to take back…"), muted, as a footnote under the answers, so it never competes with Deny and Allow. **Learn more** opens the Claude Academy lesson that fits this step (not just the course). **Docs** opens the Claude Code docs at the section that fits, with the key passage highlighted (a text fragment, which Safari and Chrome both follow; a browser that doesn't still opens the right section).
 - **Fits the step.** A chained command (`&&`, `;`, `|`) gets the passage on how each part is checked; a delete gets the one on why a Terminal delete has no Undo; and so on, for 11 kinds of card.
 - **No repeats in a chat.** Each kind of card has its picks in order, most useful first. A lesson or passage this chat already offered, on any card, isn't offered again: the card moves to the next pick, and once a kind's picks are used up its card keeps the plain line and drops the links. A new chat, or a past chat picked up, starts fresh.
 - **Checked links only.** Every link lives in `shared/learn.mjs`. Lessons come from the Academy's own catalog; `npm run check-learn` opens each docs page and checks that the section and the passage are really there (22 of 22 on Nov 26, 2026). The app opens a link only if it is exactly one of those. Anything else, however close, is refused.

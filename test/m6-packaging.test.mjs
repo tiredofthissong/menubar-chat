@@ -78,5 +78,5 @@ test('main.mjs: one data folder for both ways of running, right-click menu, PATH
   assert.ok(setPath > 0 && setPath < src.indexOf('requestSingleInstanceLock'), 'set before anything uses the folder');
   assert.match(src, /mb\.tray\.on\('right-click', \(\) => mb\.tray\.popUpContextMenu\(Menu\.buildFromTemplate\(trayMenuTemplate\(\{ login, quit: \(\) => app\.quit\(\) \}\)\)\)\)/);
   assert.match(src, /PATH: withCommonPaths\(process\.env\.PATH, app\.getPath\('home'\)\)/);
-  assert.match(read('app/window/panel.js'), /Right-click the menu bar icon to quit/);
+  assert.match(read('app/window/usage-panel.js'), /Right-click the menu bar icon to quit/);
 });
