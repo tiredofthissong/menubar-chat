@@ -86,12 +86,26 @@ The most important screen in the app.
 - **Wrap up this chat** (Projects panel) asks first, then adds one dated note to the end of `HANDOFF.md` in the project folder: what you asked, what changed, cards allowed or not, what it cost and what Claude suggested next. Secrets are hidden. It only ever adds to the end, makes the file if needed, and leaves a `HANDOFF.md` that is a link or a folder alone.
 - **New skills without a restart.** Before each message the app checks the skills and /commands folders (the project's and yours). If something was added or changed, it picks the same chat up in a fresh Claude Code, says so in one line, and the new skill works in the / picker.
 
+## The installed app (milestone 6)
+
+- **`npm run package`** builds `Menu Bar Chat.app` in `dist/` with Electron Packager. It only builds: copying it to Applications, opening it and Start at login are Bromo's own steps.
+- **Named Menu Bar Chat**, never after Claude Code. Menu bar only (`LSUIElement`), no Dock icon.
+- **No archive** (`asar` off), so the SDK runs Claude Code's own program straight from the app folder.
+- **Signed ad hoc for this Mac only.** No developer certificate, so it isn't for sharing. If macOS says it can't check the app, System Settings > Privacy & Security > Open Anyway.
+- **One data folder.** Run from the Terminal or installed, the app keeps projects, spend and the learning log in the same `menubar-chat` folder, and only one copy runs at a time.
+- **Right-click menu on the icon:** Start at login (Bromo, Nov 26), off until he ticks it, built fresh on each click so the tick is always current, and greyed out under `npm start`, where it would add Electron itself; and Quit Menu Bar Chat.
+- **PATH from the Finder.** An app opened from the Finder gets a short PATH, so the helper adds Homebrew, `/usr/local/bin` and `~/.local/bin` after the PATH it has. Claude's commands find `git`, `node` and `gh` the same as in the Terminal.
+- Tests and developer scripts stay out of the app.
+
 ## Known gaps
 
 - Undo copies are kept in memory, so they're gone once the app quits.
 - Changes to files outside the project folder have no Undo.
 - Warm start keeps one Claude Code running for each project you've opened, until the app quits.
+- The installed app has Electron's icon in the Finder and Applications (the menu bar icon is the app's own).
+- A Node or tool installed somewhere other than Homebrew, `/usr/local/bin` or `~/.local/bin` (nvm, for one) isn't on the installed app's PATH.
+- The installed app doesn't update itself: after a `git pull`, run `npm run package` again.
 
 ## Not yet
 
-- **Start at Mac login** (Bromo, Nov 26): the packaged app (milestone 6) adds itself as a login item with Electron's `app.setLoginItemSettings({ openAtLogin: true })`, behind a "Start at login" switch that's off until Bromo turns it on. Turning it on is a Mac setting he approves at that step.
+- A week of Bromo's real use, the fixes it turns up, then v1 is tagged (milestone 6).

@@ -25,7 +25,8 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Warm start: picking a project starts Claude Code early, so the first reply is quicker | Real, tested |
 | **Wrap up this chat** (Projects panel): after you confirm, adds one dated note to the end of `HANDOFF.md` in the project folder and changes nothing else | Real, tested |
 | New skills and /commands show up without restarting the app; the chat carries on | Real, tested |
-| Packaged app you double-click | Not yet (milestone 6) |
+| **Menu Bar Chat.app**: `npm run package` builds an app you open like any other, menu bar only, no Dock icon. Same projects, spend and learning log as `npm start` | Real, built and started in the cloud, needs your Mac to check |
+| Right-click the menu bar icon: **Start at login** (off until you tick it; installed app only) and **Quit Menu Bar Chat** | Real, tested |
 
 ## Setting it up
 
@@ -46,11 +47,13 @@ Before `npm start`, the API key goes into the Keychain (you paste it when asked;
 security add-generic-password -s claude-menubar-anthropic -a "$USER" -w
 ```
 
-Already set up? To get a new milestone: `git pull`, then `npm install`, then quit the app from its menu bar icon and run `npm start` again.
+Already set up? To get a new milestone: `git pull`, then `npm install`, then quit the app (right-click its menu bar icon, or Control-C in the Terminal that runs it) and run `npm start` again.
+
+**The installed app (milestone 6).** `npm run package` builds `dist/Menu Bar Chat-darwin-arm64/Menu Bar Chat.app`. It needs Node 22.12 or newer. Drag it to Applications and open it from there. It's signed for this Mac only, not by a developer, so if macOS says it can't check it, open System Settings > Privacy & Security and choose Open Anyway. Quit any `npm start` copy first: only one runs at a time. After a `git pull`, run `npm run package` again and replace the copy in Applications.
 
 **Keys in the window:** Enter sends, Shift-Enter starts a new line, Tab moves between controls, Esc closes an open panel, otherwise it tucks the window away.
 
-**Each of these waits for your yes at the time:** installing Node (if you don't have it), creating the API key (it costs money), saving it in the Keychain, `npm install`, adding the push block, and allowing notifications.
+**Each of these waits for your yes at the time:** installing Node (if you don't have it), creating the API key (it costs money), saving it in the Keychain, `npm install`, adding the push block, allowing notifications, copying the app to Applications and opening it, and ticking Start at login.
 
 ## Commands
 
@@ -60,6 +63,7 @@ Already set up? To get a new milestone: `git pull`, then `npm install`, then qui
 | `npm test` | Runs the checks (no key, no network, no cost). Every source file stays at 200 lines or fewer |
 | `npm run scratch` | Makes `~/menubar-scratch` with two test projects and a local stand-in for GitHub |
 | `npm run block-pushes -- <folder>` | Makes every `git push` from that repo fail. `--remove` takes it off again |
+| `npm run package` | Builds **Menu Bar Chat.app** in `dist/`. It installs nothing and opens nothing |
 | `npm run check-learn` | Opens each docs page a Docs button points at and checks the highlighted passage is still there (needs the internet) |
 
 ## How it stays safe
@@ -84,7 +88,7 @@ status/    the hover line
 sidebar/   the history list (shown from milestone 4)
 shared/    the window-helper contract, secret hiding, the log, plain-English explanations
 mock/      a stand-in for Claude Code used only by the tests
-scripts/   scratch projects, push block, icon maker, a headless smoke check
+scripts/   scratch projects, push block, icon maker, a headless smoke check, the app builder
 test/      npm test
 ```
 

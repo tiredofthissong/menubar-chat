@@ -3,7 +3,7 @@
 // through Electron's built-in messaging (app/helper-link.mjs): no network port, no socket.
 // Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden,
 // and only shown or hidden, so it opens fast.
-import { app, dialog, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
+import { app, dialog, globalShortcut, ipcMain, Menu, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
 import menubarPkg from 'menubar';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -18,6 +18,7 @@ import { approvalNotice } from './notify.mjs';
 import { createProjects } from './project-ipc.mjs';
 import { createLearning } from './learning.mjs';
 import { isLearnLink } from '../shared/learn.mjs';
+import { createLoginItem, trayMenuTemplate, withCommonPaths } from './login-item.mjs';
 
 const { menubar } = menubarPkg;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +29,10 @@ const CAP_USD = 5; // per day, across all projects (Bromo's pick, Nov 26)
 const WIDTH = 480; const MIN_HEIGHT = 480; // the window grows from here to fit, up to the bottom of the screen
 const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
+// The same folder for your projects, spend and learning log whether it runs from the Terminal or installed.
+app.setPath('userData', path.join(app.getPath('appData'), 'menubar-chat'));
 if (!app.requestSingleInstanceLock()) app.quit();
+const login = createLoginItem({ app });
 
 let projects = null; let learning = null; let spentUsd = 0; let pendingCards = 0; let busy = 0;
 let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false;
@@ -48,7 +52,10 @@ const send = (ev) => mb?.window?.webContents.send('event', ev);
 
 // The helper's environment leaves out any API key in the app's own environment; each Claude Code
 // process gets its key from the Keychain only (engine/options.mjs).
-const helperEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_|^CLAUDE_CODE_/.test(k)));
+const helperEnv = () => ({
+  ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_|^CLAUDE_CODE_/.test(k))),
+  PATH: withCommonPaths(process.env.PATH, app.getPath('home')), // opened from the Finder, PATH is short
+});
 const link = createHelperLink({
   fork: (entry) => utilityProcess.fork(entry, [], { serviceName: 'Menu bar chat helper', env: helperEnv() }),
   entry: path.join(ROOT, 'engine', 'helper-process.mjs'),
@@ -167,6 +174,7 @@ app.whenReady().then(() => {
     // Reduce Motion turned on or off while the app runs: the icon follows at once.
     systemPreferences.subscribeWorkspaceNotification?.('NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification', () => animator.refresh());
     mb.tray.on('mouse-down', () => { if (!mb.window?.isVisible()) { openStartedAt = performance.now(); openSource = 'icon'; } });
+    mb.tray.on('right-click', () => mb.tray.popUpContextMenu(Menu.buildFromTemplate(trayMenuTemplate({ login, quit: () => app.quit() }))));
     mb.window.webContents.setWindowOpenHandler(({ url }) => {
       if (isLearnLink(url)) shell.openExternal(url); // the checked learn-more list only
       return { action: 'deny' };
