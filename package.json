@@ -2,7 +2,7 @@
   "name": "menubar-chat",
   "version": "0.0.1",
   "private": true,
-  "description": "A Mac menu bar chat window for working with Claude, without the Terminal. Milestone 4.",
+  "description": "A Mac menu bar chat window for working with Claude, without the Terminal. Milestone 5.",
   "type": "module",
   "main": "app/main.mjs",
   "license": "UNLICENSED",

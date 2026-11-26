@@ -2,7 +2,7 @@
 
 A small Mac menu bar window for working with Claude Code without the Terminal. Every change asks you first, work projects can't push anywhere, and it runs on its own separately billed API key.
 
-**Where it stands:** milestones 1 to 4 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes; the window is the v1 chat window with plain approval cards and next-step buttons; it behaves like a menu bar app (opens fast, tucks itself away); and it knows your project folders, their past chats, Work or Personal, and what you've spent. It is not the finished app yet.
+**Where it stands:** milestones 1 to 5 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes; the window is the v1 chat window with plain approval cards and next-step buttons; it behaves like a menu bar app (opens fast, tucks itself away); it knows your project folders, their past chats, Work or Personal, and what you've spent; and every card teaches one plain line with a checked link to learn more. It is not the packaged app yet.
 
 ## What's real and what isn't yet
 
@@ -20,6 +20,11 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Projects: click the project name for your folders (each tagged Work or Personal), its past chats to pick up, **New chat**, and **Add a folder…** (picked in the Mac's own folder window) | Real, tested |
 | Work or Personal: untagged counts as Work. Work blocks GitHub, `gh` and your personal hub with no button to override; making a project Personal asks first. **Add push block** puts the pre-push hook in a work repo after you confirm | Real, tested with real git |
 | Usage: click the spending figure for today against the $5 cap, this chat in dollars, and how much of Claude's memory the chat has used | Real, tested |
+| Learning: every card has one plain line, plus **Learn more** (Claude Academy) and **Docs** (code.claude.com), from a checked list only. The Usage panel shows a learning log by Academy course | Real, tested |
+| Starters: an empty chat offers three ways to start; one fills the chat box and sends nothing | Real, tested |
+| Warm start: picking a project starts Claude Code early, so the first reply is quicker | Real, tested |
+| **Wrap up this chat** (Projects panel): after you confirm, adds one dated note to the end of `HANDOFF.md` in the project folder and changes nothing else | Real, tested |
+| New skills and /commands show up without restarting the app; the chat carries on | Real, tested |
 | Packaged app you double-click | Not yet (milestone 6) |
 
 ## Setting it up

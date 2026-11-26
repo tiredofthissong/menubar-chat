@@ -11,6 +11,7 @@ import { pullNext } from './next.mjs';
 import { StatusBoard } from '../status/status.mjs';
 import { listProjectSessions } from '../sidebar/sessions.mjs';
 import { ProjectSession } from './session.mjs';
+import { createChatRecord, entryText, appendHandoff } from './wrapup.mjs';
 
 export const REPLAY = 300;
 const SKIP_REPLAY = new Set(['status']);
@@ -21,7 +22,7 @@ const SKIP_REPLAY = new Set(['status']);
  */
 export function createHelper({ projects, sdk, budget, settings, log, send }) {
   const status = new StatusBoard();
-  const sessions = new Map(); const replay = new Map(); let byName = new Map(projects.map((p) => [p.name, p]));
+  const sessions = new Map(); const replay = new Map(); const chats = new Map(); let byName = new Map(projects.map((p) => [p.name, p]));
   let last = '';
 
   const pendingCards = () => [...sessions.values()].reduce((n, s) => n + s.broker.size, 0);
@@ -35,12 +36,21 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
       return;
     }
     const safe = redactDeep(ev);
+    if (safe.project) chatOf(safe.project, safe.type === 'session' ? safe.sessionId : undefined).note(safe);
     if (safe.project && !SKIP_REPLAY.has(safe.type)) {
       const list = replay.get(safe.project) || []; list.push(safe);
       if (list.length > REPLAY) list.shift();
       replay.set(safe.project, list);
     }
     try { send(safe); } catch (e) { log.warn('helper', 'send failed', { error: e }); }
+  }
+
+  /** The record the Wrap up button writes from. Moving to another chat (new, cleared, picked up) starts a new one. */
+  function chatOf(name, sessionId) {
+    let c = chats.get(name);
+    if (!c || sessionId === null || (sessionId && c.sid && c.sid !== sessionId)) { c = { rec: createChatRecord(), sid: null }; chats.set(name, c); }
+    if (sessionId) c.sid = sessionId;
+    return c.rec;
   }
 
   function sessionFor(name) {
@@ -51,7 +61,13 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
   }
 
   const actions = {
-    send: (s, c) => { s.send(c.text); return { ok: true }; },
+    send: (s, c) => { chatOf(s.project.name).ask(c.text); s.send(c.text); return { ok: true }; },
+    warm: (s) => { s.warm(); return { ok: true }; },
+    wrapUp: (s) => {
+      const r = chatOf(s.project.name).data;
+      if (!r.asks.length && !r.changes.length) return { ok: false, error: 'Nothing to wrap up yet: this chat has no messages.' };
+      return appendHandoff(s.project.path, entryText(r, { project: s.project.name }));
+    },
     answer: (s, c) => (s.answer(c.id, c.decision) ? { ok: true } : { ok: false, error: 'That card was already answered or has gone.' }),
     stop: async (s) => { await s.stop(); return { ok: true }; },
     setMode: async (s, c) => { const r = await s.setMode(c.mode); return r.ok ? { ok: true, mode: r.mode } : { ok: false, error: r.text }; },

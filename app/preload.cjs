@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('menubarChat', {
   history: (project) => command({ type: 'history', project }),
   resume: (project, sessionId) => command({ type: 'resume', project, sessionId }),
   newChat: (project) => command({ type: 'newChat', project }),
+  warm: (project) => command({ type: 'warm', project }),
+  wrapUp: (project) => command({ type: 'wrapUp', project }),
+  // Learning: the log by course, and a learn-more link the app opens only if it's on the checked list.
+  learnSummary: () => ipcRenderer.invoke('learn:summary'),
+  openLearn: (url) => ipcRenderer.invoke('learn:open', url),
   // Project actions the app does itself. The folder comes from the Mac's own picker, never from here.
   pickFolder: () => ipcRenderer.invoke('projects:pick'),
   addFolder: (tag) => ipcRenderer.invoke('projects:add', tag),

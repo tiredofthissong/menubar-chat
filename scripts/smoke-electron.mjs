@@ -2,6 +2,7 @@
 // prints it, and quits. Run: npx electron scripts/smoke-electron.mjs
 import { app, BrowserWindow } from 'electron';
 import '../app/main.mjs';
+import { learnFor } from '../shared/learn.mjs';
 
 app.whenReady().then(() => setTimeout(async () => {
   const w = BrowserWindow.getAllWindows()[0];
@@ -70,14 +71,15 @@ app.whenReady().then(() => setTimeout(async () => {
   say({ type: 'hint', kind: 'slash-typo', suggestion: 'design-rules', text: "There's no /desgin-rules in this project. Did you mean /design-rules?" });
   say({ type: 'change', id: 'toolu_smoke', file: 'notes.txt', sentence: 'Changed 1 line in notes.txt. Why: notes.txt has a typo.', canUndo: true,
     diff: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-teh notes', '+the notes'] }] });
-  say({ type: 'approval', card: { id: 'smoke-card', toolName: 'Bash', danger: true, trash: true, defaultChoice: 'deny', command: 'git pull && rm old-notes.txt',
+  say({ type: 'approval', card: { id: 'smoke-card', toolName: 'Bash', danger: true, trash: true, defaultChoice: 'deny', command: 'git pull && rm old-notes.txt', learn: learnFor('Bash', {}, true),
     items: [{ say: 'Download the latest changes', target: '', danger: false }, { say: 'DELETE files', target: 'old-notes.txt', danger: true }] } });
   await new Promise((r) => setTimeout(r, 400));
   const card = await w.webContents.executeJavaScript(`(() => { const c = document.querySelector('.card'); return {
     red: c.classList.contains('danger'), ask: c.querySelector('.card-ask').textContent, steps: [...c.querySelectorAll('.card-steps li')].map((l) => l.textContent),
     buttons: [...c.querySelectorAll('.card-actions button')].map((b) => [b.textContent, b.className]), focusedInCard: c.contains(document.activeElement),
     change: document.querySelector('.change summary')?.textContent, undo: document.querySelector('.change button')?.textContent,
-    fix: [...document.querySelectorAll('.line-hint button')].map((b) => b.textContent) }; })()`);
+    fix: [...document.querySelectorAll('.line-hint button')].map((b) => b.textContent),
+    learn: c.querySelector('.card-learn-line')?.textContent, learnButtons: [...c.querySelectorAll('.card-learn button')].map((b) => b.textContent) }; })()`);
   console.log('SMOKE-CARD ' + JSON.stringify(card));
   // Milestone 3: a reply's next steps become buttons, and opening the window puts the cursor in the chat box.
   say({ type: 'text', text: 'I fixed the typo.\n' }); say({ type: 'suggestions', items: ['Run the tests', 'Show me what changed'] });
@@ -120,9 +122,19 @@ app.whenReady().then(() => setTimeout(async () => {
   const escClosed = await w.webContents.executeJavaScript(`document.getElementById('panel-projects').hidden && document.activeElement?.id === 'project'`);
   await w.webContents.executeJavaScript(`document.getElementById('spend').click()`); await wait(300);
   const usage = await w.webContents.executeJavaScript(`[...document.querySelectorAll('#panel-usage p')].map((p) => p.textContent)`);
+  const learnTitles = await w.webContents.executeJavaScript(`[...document.querySelectorAll('#panel-usage .panel-title')].map((h) => h.textContent)`);
   if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-usage.png'), (await w.webContents.capturePage()).toPNG()); }
   await w.webContents.executeJavaScript(`document.getElementById('spend').click()`); await wait(200);
   console.log('SMOKE-PANEL ' + JSON.stringify({ ...panel, escClosed, usage, bars: await w.webContents.executeJavaScript(`document.querySelectorAll('progress').length`) }));
+  // Milestone 5: starters in an empty chat fill the box (and send nothing); Usage has a Learning part; Wrap up asks first.
+  const starters = await w.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('#log .starters button')];
+    const sent = document.querySelectorAll('.msg-you').length; b[0]?.click();
+    return { count: b.length, filled: document.getElementById('input').value, focused: document.activeElement?.id === 'input', sentNothing: document.querySelectorAll('.msg-you').length === sent }; })()`);
+  await w.webContents.executeJavaScript(`document.getElementById('input').value = ''; document.getElementById('project').click()`); await wait(400);
+  const wrap = await w.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('#panel-projects button')].find((x) => x.textContent === 'Wrap up this chat');
+    b?.click(); const q = document.querySelector('#panel-projects .confirm'); return { button: !!b, asks: q?.querySelector('p')?.textContent, answers: [...(q?.querySelectorAll('button') || [])].map((x) => x.textContent) }; })()`);
+  await w.webContents.executeJavaScript(`document.getElementById('project').click()`); await wait(200);
+  console.log('SMOKE-LEARN ' + JSON.stringify({ starters, learnTitles, wrap }));
   if (process.env.SMOKE_SHOT) {
     const fs = await import('node:fs');
     w.show(); await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.querySelector('.log').scrollTop = 1e9`);

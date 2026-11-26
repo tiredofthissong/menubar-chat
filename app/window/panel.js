@@ -1,8 +1,9 @@
 // panel.js - the two drop-down panels under the top bar. Plain script.
 //   Projects: switch project, add a folder (Work or Personal), start a new chat, pick up a past
 //             chat, change the tag, and add the push block to a work repo.
-//   Usage:    today against the daily cap, this chat in dollars, and how much of Claude's memory
-//             this chat has used.
+//   Usage:    today against the daily cap, this chat in dollars, how much of Claude's memory
+//             this chat has used, and the learning log by Claude Academy course.
+//   Wrap up:  adds one dated note about this chat to HANDOFF.md in the project folder.
 // Anything that changes a setting or a repo asks first, in the panel, with two answers that look
 // the same and neither picked.
 'use strict';
@@ -49,7 +50,11 @@ window.ChatPanel = (() => {
 
   function chats(name) {
     const s = section(`Chats in ${name}`);
-    s.append(button('New chat', 'btn btn-small btn-quiet', () => { ctx.api.newChat(name).then(say); close(); }));
+    const row = el('div', 'confirm-actions');
+    row.append(button('New chat', 'btn btn-small btn-quiet', () => { ctx.api.newChat(name).then(say); close(); }),
+      button('Wrap up this chat', 'btn btn-small btn-quiet', () => confirm(s, 'Add a dated note about this chat to the end of HANDOFF.md in this folder? Nothing else changes.',
+        'Cancel', 'Add the note', async () => say(await ctx.api.wrapUp(name)))));
+    s.append(row);
     const list = el('div', 'chat-list'); list.append(el('p', 'muted', 'Loading past chats…'));
     s.append(list);
     ctx.api.history(name).then((r) => {
@@ -100,12 +105,30 @@ window.ChatPanel = (() => {
     return s;
   }
 
+  // What you've met on cards, by Claude Academy course, with the course one click away.
+  function learning() {
+    const s = section('Learning'); const list = el('div', 'chat-list'); list.append(el('p', 'muted', 'Loading…'));
+    s.append(list);
+    ctx.api.learnSummary().then((r) => {
+      list.replaceChildren();
+      const met = (r?.ok ? r.courses : []).filter((c) => c.count > 0);
+      if (!met.length) { list.append(el('p', 'panel-note', 'Each card you see adds a line here, tagged with its Claude Academy course.')); return; }
+      for (const c of met) {
+        const b = button(c.course, 'chat-item', () => ctx.api.openLearn(c.url).then(say));
+        b.title = `Open ${c.course} on Claude Academy`;
+        b.append(el('span', 'muted', `${c.count} ${c.count === 1 ? 'card' : 'cards'}`));
+        list.append(b);
+      }
+    });
+    return s;
+  }
+
   function render() {
     if (open === 'projects') {
       const p = ctx.projects().find((x) => x.name === ctx.current());
       $('panel-projects').replaceChildren(projectList(), ...(p ? [chats(p.name), safety(p)] : []));
     }
-    if (open === 'usage') $('panel-usage').replaceChildren(usage());
+    if (open === 'usage') $('panel-usage').replaceChildren(usage(), learning());
   }
   function toggle(which) {
     const was = open; close(false);

@@ -28,10 +28,23 @@ window.ChatCards = (() => {
     return d;
   }
 
+  // One plain line about what this kind of step is, and where to learn more (checked links only).
+  function learn(card, open) {
+    const l = card.learn;
+    if (!l || typeof l.line !== 'string' || typeof open !== 'function') return null;
+    const box = el('div', 'card-learn'); box.append(el('span', 'card-learn-line', l.line));
+    const more = button('Learn more', 'btn btn-small btn-quiet', () => open(l.academy));
+    more.title = `${l.course} on Claude Academy`;
+    const docs = button('Docs', 'btn btn-small btn-quiet', () => open(l.docs));
+    docs.title = 'The Claude Code docs page on this';
+    box.append(more, docs);
+    return box;
+  }
+
   /**
    * @param {string} project
    * @param {object} card   from the helper: { id, toolName, plain, items?, command?, danger, trash }
-   * @param {{ answer: (decision: string) => void, copy: (text: string) => void }} act
+   * @param {{ answer: (decision: string) => void, copy: (text: string) => void, learn?: (url: string) => void }} act
    */
   function render(project, card, act) {
     const danger = card.danger === true;
@@ -44,6 +57,7 @@ window.ChatCards = (() => {
     if (list) c.append(list.ol);
     if (danger) c.append(el('p', 'card-warn', 'This deletes files. Deleted files may not come back. Move to Trash keeps them in your Mac\'s Trash.'));
     const ex = exact(card, act.copy); if (ex) c.append(ex);
+    const lm = learn(card, act.learn); if (lm) c.append(lm);
     const row = el('div', 'card-actions');
     // Same class for every answer, and no autofocus: nothing is pre-selected.
     row.append(button('Deny', 'btn', () => act.answer('deny')));

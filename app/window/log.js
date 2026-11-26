@@ -6,14 +6,22 @@ window.ChatLog = (() => {
   const { $, el, button } = window.ChatDom;
   const S = window.ChatScroll; const MD = window.ChatMarkdown;
   const EMPTY = 'Ask Claude to do something in this project, in your own words. Anything that changes a file or runs a command asks you first. Pasted Terminal lines work too.';
+  const STARTERS = ['Explain what this project does, in plain words.', 'Plan a small improvement first, without changing anything.', 'What should I work on next here?'];
 
   const logs = new Map(); const bubble = new Map(); const sources = new WeakMap(); const undos = new Map();
   let current = null; let stick = true;
   const jump = button('Jump to latest', 'jump btn btn-small'); jump.hidden = true;
 
   function logFor(project) {
-    if (!logs.has(project)) { const box = el('div', 'project-log'); box.append(el('p', 'empty', EMPTY)); logs.set(project, box); }
+    if (!logs.has(project)) { const box = el('div', 'project-log'); box.append(emptyState()); logs.set(project, box); }
     return logs.get(project);
+  }
+  // A new chat: the hint, and a few ways to start. A starter fills the box; nothing goes until you press Send.
+  function emptyState() {
+    const box = el('div', 'empty'); box.append(el('p', '', EMPTY));
+    const row = el('div', 'starters'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Ways to start');
+    for (const s of STARTERS) row.append(button(s, 'btn btn-small btn-quiet', () => fill?.(s)));
+    box.append(row); return box;
   }
   function toBottom() { const log = $('log'); log.scrollTop = log.scrollHeight; stick = true; jump.hidden = true; }
   function follow() { if (stick) toBottom(); else jump.hidden = false; }
@@ -94,7 +102,7 @@ window.ChatLog = (() => {
   function undone(id) { const b = undos.get(id); if (b) { b.disabled = true; b.textContent = 'Undone'; } }
 
   // Window size: ask for the height the conversation and cards need, so the chat box never gets cut off.
-  let api = null; let queued = false; const sizeChanged = S.makeSizeGate();
+  let api = null; let fill = null; let queued = false; const sizeChanged = S.makeSizeGate();
   function fit() {
     if (queued || !api) return; queued = true;
     requestAnimationFrame(() => {
@@ -109,8 +117,8 @@ window.ChatLog = (() => {
     });
   }
 
-  function init(bridge) {
-    api = bridge;
+  function init(bridge, opts = {}) {
+    api = bridge; fill = opts.fill || null;
     const log = $('log');
     new ResizeObserver(() => { if (stick) toBottom(); }).observe(log);
     // Reading back: a scroll away from the bottom stops the follow; a wheel turn that didn't move

@@ -24,6 +24,8 @@ export const COMMANDS = {
   resume: { project: 'project', sessionId: 'sessionId' },
   newChat: { project: 'project' },
   replay: { project: 'project' },                           // what this window missed while it reloaded
+  warm: { project: 'project' },                             // start Claude Code early, before the first message
+  wrapUp: { project: 'project' },                           // add this chat's wrap-up to HANDOFF.md
 };
 
 export const EVENT_TYPES = [

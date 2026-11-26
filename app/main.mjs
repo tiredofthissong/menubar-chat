@@ -16,6 +16,8 @@ import { Animator } from './animator.mjs';
 import { TuckTimer } from './tuck.mjs';
 import { approvalNotice } from './notify.mjs';
 import { createProjects } from './project-ipc.mjs';
+import { createLearning } from './learning.mjs';
+import { isLearnLink } from '../shared/learn.mjs';
 
 const { menubar } = menubarPkg;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +30,7 @@ const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-let projects = null; let spentUsd = 0; let pendingCards = 0; let busy = 0;
+let projects = null; let learning = null; let spentUsd = 0; let pendingCards = 0; let busy = 0;
 let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false;
 let activity = { hovered: false, typing: false };
 const notices = new Map(); // card id -> its notification, closed once the card is answered
@@ -72,7 +74,7 @@ function onEvent(ev) {
   }
   if (typeof ev.spentUsd === 'number') spentUsd = ev.spentUsd;
   send(ev);
-  if (ev.type === 'approval' && !mb.window?.isVisible()) notifyApproval(ev);
+  if (ev.type === 'approval') { learning?.record(ev); if (!mb.window?.isVisible()) notifyApproval(ev); }
   if (ev.type === 'approval_closed') { notices.get(ev.id)?.close(); notices.delete(ev.id); }
   if (ev.type === 'turn_done') tuck.replied();
 }
@@ -141,6 +143,7 @@ app.whenReady().then(() => {
     userFile: path.join(app.getPath('userData'), 'projects.json'), scratchFile: path.join(SCRATCH, 'projects.json'),
     onChange: (list) => link.projects(list),
   });
+  learning = createLearning({ ipcMain, shell, fromOurWindow, file: path.join(app.getPath('userData'), 'learning-log.jsonl') });
   // Before the window exists: menubar loads the page while it starts, and the page asks
   // for 'init' straight away.
   wireIpc();
@@ -165,7 +168,7 @@ app.whenReady().then(() => {
     systemPreferences.subscribeWorkspaceNotification?.('NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification', () => animator.refresh());
     mb.tray.on('mouse-down', () => { if (!mb.window?.isVisible()) { openStartedAt = performance.now(); openSource = 'icon'; } });
     mb.window.webContents.setWindowOpenHandler(({ url }) => {
-      if (/^https:\/\/(academy\.claude\.com|code\.claude\.com)\//.test(url)) shell.openExternal(url); // vetted learn-more hosts only
+      if (isLearnLink(url)) shell.openExternal(url); // the checked learn-more list only
       return { action: 'deny' };
     });
     mb.window.webContents.on('will-navigate', (ev) => ev.preventDefault());

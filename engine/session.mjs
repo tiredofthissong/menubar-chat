@@ -1,6 +1,5 @@
-// session.mjs - one project folder = one long-lived SDK query = one Claude Code process.
-// Owns the query, its input queue, the approval broker, the change copies and the meter.
-// Talks to the outside world only through emit(event); reads SDK shapes only via translate.mjs.
+// session.mjs - one project folder = one long-lived SDK query = one Claude Code process. Owns the
+// query, input queue, approval broker, change copies and meter. Talks out only through emit(event).
 // Failure rule: anything unexpected ends the turn and DENIES whatever is waiting.
 import { event } from '../shared/contract.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
@@ -16,6 +15,8 @@ import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
 import { pullNext } from './next.mjs';
+import { learnFor } from '../shared/learn.mjs';
+import { skillDirs, skillStamp } from './skills.mjs';
 
 export class ProjectSession {
   /**
@@ -56,7 +57,8 @@ export class ProjectSession {
   canUseTool = async (toolName, input, opts) => {
     const verdict = checkToolCall({ project: this.project, hubPaths: this.settings.hubPaths }, toolName, input);
     if (verdict.decision === 'deny') return { behavior: 'deny', message: verdict.plain, toolUseID: opts?.toolUseID };
-    const answer = await this.broker.ask(toolName, input, opts, explainToolCall(toolName, input, this.project.path));
+    const card = explainToolCall(toolName, input, this.project.path);
+    const answer = await this.broker.ask(toolName, input, opts, { ...card, learn: learnFor(toolName, input, card.danger) });
     // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
     if (toolName === 'ExitPlanMode' && answer.behavior === 'allow' && this.mode === 'plan') this.noteMode('default');
     return answer;
@@ -64,7 +66,11 @@ export class ProjectSession {
 
   noteMode(mode) { this.mode = mode; this.emit(event('mode', { mode, label: MODES[mode] })); }
 
+  /** Start Claude Code before the first message, so the first reply comes sooner. Costs nothing. */
+  warm() { if (!this.q && !this.budget.reached) this.start(); }
+
   start() {
+    this.skills = skillStamp(skillDirs(this.project.path, this.settings.home));
     this.input = createInputQueue();
     this.scratch = newScratch(this.project.path);
     const hubPaths = this.settings.hubPaths;
@@ -132,7 +138,7 @@ export class ProjectSession {
     if (this.next.length) this.emit(event('suggestions', { items: this.next }));
     this.next = [];
     this.emit(event('turn_done', { ok: res.ok, approvals: this.approvals, costUsd: res.totalCostUsd ?? 0, spentUsd, capUsd }));
-    this.approvals = 0;
+    this.approvals = 0; this.turnOpen = false;
     this.setStatus('idle');
     if (this.budget.reached) this.close();
   }
@@ -140,15 +146,19 @@ export class ProjectSession {
   send(text) {
     this.next = [];
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
-    // Typing while a card waits answers the card: it's a "no", with the words as the reason.
+    // Typing while a card waits answers it with a "no". New or changed skills: same chat, fresh process.
     if (this.broker.size) this.broker.denyAll('You sent a new message instead, so it was not run.');
+    if (this.q && !this.turnOpen && skillStamp(skillDirs(this.project.path, this.settings.home)) !== this.skills) {
+      this.close(); this.slashCommands = null;
+      this.emit(event('hint', { kind: 'skills', text: 'Found new or changed skills, so Claude picked them up. Your chat carries on.' }));
+    }
     // Pasted Terminal lines, "claude ...", "!cmd" and mistyped /commands get one calm line.
     const c = classifyInput(text, { commands: this.slashCommands?.length ? this.slashCommands : null, project: this.project.name });
     if (c.note) this.emit(event('hint', { kind: c.kind, text: c.note, ...(c.suggestion ? { suggestion: c.suggestion } : {}) }));
     if (c.action === 'newChat') { this.resume(null); this.emit(event('session', { sessionId: null, mode: this.mode })); }
     if (!c.send) return;
     if (!this.q) this.start();
-    this.setStatus('thinking');
+    this.turnOpen = true; this.setStatus('thinking');
     this.input.push({ type: 'user', session_id: this.sessionId || '', parent_tool_use_id: null, message: { role: 'user', content: c.send } });
   }
 

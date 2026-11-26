@@ -74,10 +74,21 @@ The most important screen in the app.
 - **Push block** shows On, Off (with **Add push block**, which asks once more), or "has its own hook" (left alone). Only the app writes the hook; Claude never does.
 - **Usage** uses two plain bars (today against the cap; memory used) in the text colour, not the accent, so Send stays the one accent.
 
+## Learning layer and extras (milestone 5)
+
+- **One plain line on every card** says what this kind of step is ("A delete is hard to take back…"), muted and below the ask, so it never competes with Deny and Allow. **Learn more** opens the matching Claude Academy course; **Docs** opens the Claude Code docs page.
+- **Checked links only.** Every link lives in `shared/learn.mjs` and was opened on Nov 26, 2026. The app opens a link only if it is exactly one of those, on academy.claude.com or code.claude.com. Anything else, however close, is refused.
+- **Learning log.** Each card adds one line to `learning-log.jsonl` in the app's own folder: the time, the project, the topic and its Academy course. Never the command or a file name. The Usage panel shows the courses you've met, with counts; a click opens the course. The oldest lines go after 2,000.
+- **Starters.** An empty chat offers three ways to start. A starter fills the chat box and puts the cursor there; nothing goes until you press Send.
+- **Warm start.** Picking a project starts Claude Code in the background (only when the key is in place), so the first reply comes sooner. It costs nothing until you send.
+- **Wrap up this chat** (Projects panel) asks first, then adds one dated note to the end of `HANDOFF.md` in the project folder: what you asked, what changed, cards allowed or not, what it cost and what Claude suggested next. Secrets are hidden. It only ever adds to the end, makes the file if needed, and leaves a `HANDOFF.md` that is a link or a folder alone.
+- **New skills without a restart.** Before each message the app checks the skills and /commands folders (the project's and yours). If something was added or changed, it picks the same chat up in a fresh Claude Code, says so in one line, and the new skill works in the / picker.
+
 ## Known gaps
 
 - Undo copies are kept in memory, so they're gone once the app quits.
 - Changes to files outside the project folder have no Undo.
+- Warm start keeps one Claude Code running for each project you've opened, until the app quits.
 
 ## Not yet
 

@@ -87,7 +87,7 @@ test('main process: sandboxed window, sender checks on every message, vetted out
     assert.match(body, /fromOurWindow\(e\)/, `${name} checks the sender`);
   }
   assert.match(main, /will-navigate', \(ev\) => ev\.preventDefault\(\)/);
-  assert.match(main, /academy\\\.claude\\\.com\|code\\\.claude\\\.com/);
+  assert.match(main, /if \(isLearnLink\(url\)\) shell\.openExternal\(url\)/, 'outside links only from the checked list');
   assert.doesNotMatch(main, /find-generic-password', '-s', KEYCHAIN_SERVICE, '-w'/, 'presence check never reads the key');
 });
 

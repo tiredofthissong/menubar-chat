@@ -40,6 +40,7 @@
     $('stop').disabled = !state.busy.has(name);
     for (const [, c] of state.cards) c.node.hidden = c.project !== name;
     showMode(); Log.show(name);
+    if (state.warm) api.warm(name).catch(() => {}); // start Claude Code now, so the first reply is quicker
   }
 
   function sendText(project, text) {
@@ -60,6 +61,7 @@
     const node = Cards.render(project, card, {
       answer: (decision) => { Cards.settle(node); api.answer(project, card.id, decision).then(said); },
       copy: (t) => { api.copy(t); notice('Command copied.'); },
+      learn: (u) => api.openLearn(u).then(said),
     });
     node.hidden = project !== state.current;
     state.cards.set(card.id, { node, project });
@@ -111,7 +113,7 @@
   }
 
   async function start() {
-    Log.init(api);
+    Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); } });
     Panel.init({
       api, notice, select: selectProject, setProjects, projects: () => state.projects, current: () => state.current,
       usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, ...(state.chat.get(state.current) || {}) }),
@@ -121,6 +123,7 @@
     state.projects = info.projects || [];
     state.model = info.model || 'Sonnet';
     showSpend(info.spentUsd ?? 0, info.capUsd ?? 5);
+    state.warm = info.keychainOk === true;
     $('spend').title = 'Spending today. Click for this chat and how much memory it has used.';
     if (!state.projects.length) {
       notice('No projects yet. Click Project, then Add a folder.', true);
