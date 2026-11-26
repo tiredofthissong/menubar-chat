@@ -28,11 +28,15 @@ export class ProjectSession {
     this.emit = (ev) => emit({ project: project.name, ...ev });
     this.mode = START_MODE;
     this.sessionId = null; this.q = null; this.input = null;
+    this.explained = new Set(); // tool calls the window already explained (card answered, or blocked)
     this.resetTurn();
     this.broker = new ApprovalBroker({
       timeoutMs: settings.approvalTimeoutMs,
       onOpen: (card) => { this.turn.approvals++; this.cards(); this.emit({ type: 'approval', card }); },
-      onClose: (id, decision, why) => { this.cards(); this.emit({ type: 'approval_closed', id, decision, why }); },
+      onClose: (id, decision, why, toolUseID) => {
+        if (decision !== 'allow' && toolUseID) this.explained.add(toolUseID);
+        this.cards(); this.emit({ type: 'approval_closed', id, decision, why });
+      },
     });
   }
 
@@ -53,7 +57,7 @@ export class ProjectSession {
       project: this.project, mode: this.mode, hubPaths: this.settings.hubPaths,
       canUseTool: this.canUseTool,
       preToolUseHook: makePreToolUseHook({ project: this.project, hubPaths: this.settings.hubPaths,
-        onBlocked: (rule, plain) => this.emit({ type: 'blocked', rule, plain }) }),
+        onBlocked: (rule, plain, toolUseID) => { if (toolUseID) this.explained.add(toolUseID); this.emit({ type: 'blocked', rule, plain }); } }),
       keychainService: this.settings.keychainService ?? null, resumeId: this.sessionId,
       budgetUsd: this.budget.left, spawn: this.settings.spawn,
     });
@@ -90,7 +94,9 @@ export class ProjectSession {
     if (m.type === 'assistant') return this.onAssistant(m.message?.content || []);
     if (m.type === 'user') {
       for (const b of Array.isArray(m.message?.content) ? m.message.content : []) {
-        if (b.type === 'tool_result' && b.is_error) this.emit({ type: 'tool_failed', text: redact(typeof b.content === 'string' ? b.content : 'Not run.') });
+        if (b.type !== 'tool_result' || !b.is_error) continue;
+        if (this.explained.delete(b.tool_use_id)) continue; // already said once, on the card or as "Blocked"
+        this.emit({ type: 'tool_failed', text: redact(typeof b.content === 'string' ? b.content : 'Not run.') });
       }
       return;
     }
@@ -127,7 +133,7 @@ export class ProjectSession {
   send(text) {
     if (this.budget.reached) { this.emit({ type: 'error', code: 'budget', text: `This test run reached its $${this.budget.capUsd} cap, so nothing more was sent.` }); return; }
     // Typing while a card waits answers the card: it's a "no", with the words as the reason.
-    if (this.broker.size) { this.broker.denyAll(`You said no and wrote: ${text}`); }
+    if (this.broker.size) { this.broker.denyAll('You sent a new message instead, so it was not run.'); }
     if (!this.q) this.start();
     this.setStatus('thinking');
     this.input.push({ type: 'user', session_id: this.sessionId || '', parent_tool_use_id: null, message: { role: 'user', content: text } });

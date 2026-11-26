@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 export const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 
 export class ApprovalBroker {
-  /** @param {{ onOpen: (card) => void, onClose: (id, decision, why) => void, timeoutMs?: number }} opts */
+  /** @param {{ onOpen: (card) => void, onClose: (id, decision, why, toolUseID) => void, timeoutMs?: number }} opts */
   constructor({ onOpen, onClose, timeoutMs = DEFAULT_TIMEOUT_MS }) {
     this.onOpen = onOpen;
     this.onClose = onClose;
@@ -35,10 +35,10 @@ export class ApprovalBroker {
         if (timer) clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
         const allowed = decision === 'allow';
-        this.onClose(id, allowed ? 'allow' : 'deny', why || '');
+        this.onClose(id, allowed ? 'allow' : 'deny', why || '', toolUseID);
         resolve(allowed
           ? { behavior: 'allow', updatedInput: input, toolUseID }
-          : { behavior: 'deny', message: why || 'You said no.', toolUseID });
+          : { behavior: 'deny', message: why || 'You said no, so it was not run.', toolUseID });
       };
       this.pending.set(id, settle);
       if (signal?.aborted) return onAbort();
@@ -54,7 +54,7 @@ export class ApprovalBroker {
     if (!settle) return false;
     // Strict equality on purpose. Do not "normalize" this (no toLowerCase, no trim).
     if (typeof decision === 'string' && decision === 'allow') settle('allow');
-    else settle('deny', 'You said no.');
+    else settle('deny', 'You said no, so it was not run.');
     return true;
   }
 

@@ -14,6 +14,22 @@ app.whenReady().then(() => setTimeout(async () => {
     spend: document.getElementById('spend').textContent,
   })`);
   console.log('SMOKE ' + JSON.stringify(seen));
+  // A very tall card and a long conversation: the window should grow and the chat box stay in view.
+  w.show(); await new Promise((r) => setTimeout(r, 300));
+  const before = w.getBounds().height;
+  await w.webContents.executeJavaScript(`(() => {
+    const c = document.createElement('article'); c.className = 'card'; c.style.height = '420px'; c.textContent = 'tall card';
+    document.getElementById('cards').append(c);
+    const box = document.getElementById('log').firstElementChild;
+    for (let i = 0; i < 40; i++) { const m = document.createElement('div'); m.className = 'msg msg-claude'; m.textContent = 'line ' + i; box.append(m); }
+  })()`);
+  await new Promise((r) => setTimeout(r, 600));
+  const fit = await w.webContents.executeJavaScript(`({
+    composerBottom: Math.round(document.getElementById('composer').getBoundingClientRect().bottom),
+    viewport: window.innerHeight,
+    barTop: Math.round(document.querySelector('.bar').getBoundingClientRect().top),
+  })`);
+  console.log('SMOKE-FIT ' + JSON.stringify({ before, after: w.getBounds().height, ...fit }));
   if (process.env.SMOKE_SHOT) {
     w.show(); await new Promise((r) => setTimeout(r, 800));
     const fs = await import('node:fs');

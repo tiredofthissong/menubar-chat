@@ -24,11 +24,28 @@ const GLOSS = [
   [/^(python3?|node)\b/, 'run a script'],
   [/^(curl|wget)\b/, 'download from the internet'],
   [/^chmod\b/, 'change file permissions'],
+  [/^for\b/, 'repeat for each item'],
+  [/^(while|until)\b/, 'repeat while a check holds'],
+  [/^(if|elif)\b/, 'check a condition'],
+  [/^case\b/, 'pick a branch'],
+  [/^(test|\[\[?)\s/, 'check a condition'],
+  [/^(echo|printf)\b/, 'print text'],
+  [/^(grep|rg)\b/, 'search inside files'],
+  [/^(find)\b/, 'look for files'],
+  [/^(head|tail|wc|sort)\b/, 'look at part of a file'],
+  [/^touch\b/, 'create an empty file'],
 ];
 
 /** Split a shell command into its steps (display-grade, not a full shell parser). */
+// Shell words that only open or close a block. "do echo x" is the step "echo x"; a bare
+// "done" or "fi" is not a step at all.
+const BLOCK_OPENER = /^(do|then|else|\{|\()\s+/;
+const BLOCK_ONLY = /^(do|done|then|else|fi|esac|\{|\}|\(|\))(\s*[<>].*)?$/;
+
 export function splitSteps(command) {
-  return String(command).split(/\s*(?:&&|\|\||;|\n)\s*/).map((s) => s.trim()).filter(Boolean);
+  return String(command).split(/\s*(?:&&|\|\||;|\n)\s*/)
+    .map((s) => { let t = s.trim(); while (BLOCK_OPENER.test(t)) t = t.replace(BLOCK_OPENER, ''); return t; })
+    .filter((s) => s && !BLOCK_ONLY.test(s));
 }
 
 export function glossStep(step) {

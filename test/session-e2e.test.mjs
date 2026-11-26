@@ -48,8 +48,9 @@ test('Deny, Stop and a typed reply all mean no', async (t) => {
   h.session.send('#chain');
   let ap = await h.next((e) => e.type === 'approval');
   h.session.answer(ap.card.id, 'Allow'); // wrong case is a no
-  await h.next((e) => e.type === 'tool_failed');
+  assert.equal((await h.next((e) => e.type === 'approval_closed')).decision, 'deny');
   await h.next((e) => e.type === 'turn_done');
+  assert.equal(h.of('tool_failed').length, 0, 'a no is shown once, on the card line, not again as a failure');
 
   h.events.length = 0;
   h.session.send('#chain again');
@@ -64,7 +65,7 @@ test('Deny, Stop and a typed reply all mean no', async (t) => {
   h.session.send('no, do it differently'); // typing while a card waits
   const typed = await h.next((e) => e.type === 'approval_closed');
   assert.equal(typed.decision, 'deny');
-  assert.match(typed.why, /You said no and wrote/);
+  assert.match(typed.why, /You sent a new message instead/);
 });
 
 test('work project: git push is blocked by the hook even when an allow rule would skip the card', async (t) => {
@@ -74,7 +75,8 @@ test('work project: git push is blocked by the hook even when an allow rule woul
   assert.equal(blocked.rule, 'work-publish');
   await h.next((e) => e.type === 'turn_done');
   assert.equal(h.of('approval').length, 0, 'no card: it never reached the person');
-  assert.match(h.of('tool_failed')[0].text, /git push is switched off/);
+  assert.match(blocked.plain, /git push is switched off/);
+  assert.equal(h.of('tool_failed').length, 0, 'said once, as "Blocked", not twice');
 });
 
 test('personal project: the same push with an allow rule goes through (only work is locked)', async (t) => {

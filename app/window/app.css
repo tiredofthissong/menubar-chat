@@ -9,10 +9,13 @@ body { font-size: var(--text-sm); overflow: hidden; user-select: none; }
 h2 { font-size: var(--text-base); font-weight: var(--weight-semibold); margin: 0; }
 p { margin: 0; }
 
-.shell { display: grid; grid-template-columns: 1fr 260px; height: 100vh; }
+/* One row that is exactly the window's height: the chat box stays pinned at the bottom and
+   only the conversation scrolls. The window itself grows to fit (see fit() in app.js). */
+.shell { display: grid; grid-template-columns: 1fr 260px; grid-template-rows: minmax(0, 1fr); height: 100vh; }
 
 /* ---- Chat column ---- */
-.chat { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--color-border); }
+.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--color-border); }
+.bar, .notice, .composer { flex-shrink: 0; }
 .bar { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
 .spacer { flex: 1; }
 select {
@@ -28,7 +31,7 @@ select {
 .notice { margin: var(--space-3) var(--space-4) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--color-surface-2); border-left: 3px solid var(--color-warning); }
 .notice.bad { border-left-color: var(--color-danger); }
 
-.log { flex: 1; overflow-y: auto; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); user-select: text; }
+.log { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); user-select: text; }
 .msg { max-width: 92%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-you { align-self: flex-end; background: var(--color-accent-soft); }
 .msg-claude { align-self: flex-start; background: var(--color-surface); box-shadow: var(--shadow-1); }
@@ -38,8 +41,9 @@ select {
 .empty { margin: auto; text-align: center; color: var(--color-muted); max-width: 40ch; }
 
 /* ---- Approval cards ---- */
-.cards { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-4); }
+.cards { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-4); flex-shrink: 0; max-height: 50vh; overflow-y: auto; }
 .cards:empty { display: none; }
+.cards > * { flex-shrink: 0; } /* cards keep their own height; the list scrolls instead */
 .card { background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: var(--space-3); box-shadow: var(--shadow-2); }
 .card.danger { border-color: var(--color-danger); }
 .card-title { font-weight: var(--weight-semibold); margin-bottom: var(--space-1); }

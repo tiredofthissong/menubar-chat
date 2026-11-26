@@ -2,7 +2,7 @@
 // notifications, and one Claude Code session per test project.
 // Pop-up pattern from the Maccy + menubar research: the window is built once, kept hidden,
 // and only shown or hidden, so it opens fast.
-import { app, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell } from 'electron';
+import { app, globalShortcut, ipcMain, Notification, nativeImage, systemPreferences, clipboard, shell, screen } from 'electron';
 import menubarPkg from 'menubar';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,6 +23,7 @@ const SCRATCH = process.env.MENUBAR_SCRATCH || path.join(app.getPath('home'), 'm
 const HOTKEY = 'Control+Alt+Command+C';
 const CAP_USD = 5;
 const TUCK_AFTER_MS = 5000;
+const WIDTH = 780; const MIN_HEIGHT = 560; // the window grows from here to fit, up to the bottom of the screen
 const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -122,6 +123,14 @@ function wireIpc() {
   ipcMain.on('answer', (e, { project, id, decision }) => { if (fromOurWindow(e)) sessionFor(project)?.answer(id, decision); });
   ipcMain.on('stop', (e, { project }) => { if (fromOurWindow(e)) sessionFor(project)?.stop(); });
   ipcMain.on('hide', (e) => { if (fromOurWindow(e)) mb.hideWindow(); });
+  ipcMain.on('fit', (e, wanted) => {
+    if (!fromOurWindow(e) || !mb?.window || !Number.isFinite(wanted)) return;
+    const b = mb.window.getBounds();
+    const area = screen.getDisplayMatching(b).workArea;
+    const room = area.y + area.height - b.y - 8; // never past the bottom of the screen (or the Dock)
+    const height = Math.round(Math.max(MIN_HEIGHT, Math.min(wanted, room)));
+    if (Math.abs(height - b.height) > 4) mb.window.setBounds({ x: b.x, y: b.y, width: WIDTH, height }, false);
+  });
   ipcMain.on('activity', (e, a) => {
     if (!fromOurWindow(e)) return;
     activity = { hovered: !!a?.hovered, typing: !!a?.typing, pinned: !!a?.pinned };
@@ -151,7 +160,7 @@ app.whenReady().then(() => {
     showDockIcon: false,
     windowPosition: 'trayCenter',
     browserWindow: {
-      width: 780, height: 600, resizable: false, show: false,
+      width: WIDTH, height: 600, resizable: false, show: false,
       webPreferences: { preload: path.join(HERE, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false },
     },
   });

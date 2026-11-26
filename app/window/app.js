@@ -95,7 +95,7 @@
       for (const [mark, label] of [['pass', 'Pass'], ['fail', 'Fail']]) {
         const b = el('button', `btn btn-small ${mark}`, label); b.type = 'button';
         b.setAttribute('aria-pressed', String(state.results[c.id].mark === mark));
-        b.addEventListener('click', () => { state.results[c.id].mark = state.results[c.id].mark === mark ? null : mark; renderChecks(); });
+        b.addEventListener('click', () => { state.results[c.id].mark = state.results[c.id].mark === mark ? null : mark; saveMarks(); renderChecks(); });
         row.append(b);
       }
       if (c.tryIt) {
@@ -167,7 +167,7 @@
         break;
       case 'approval_closed': {
         state.cards.get(ev.id)?.remove(); state.cards.delete(ev.id);
-        addLine(p, ev.decision === 'allow' ? 'You allowed it once.' : `Not run. ${ev.why || ''}`.trim());
+        addLine(p, ev.decision === 'allow' ? 'You allowed it once.' : (ev.why || 'Not run.'));
         break;
       }
       case 'blocked':
@@ -200,13 +200,41 @@
           const worst = Math.max(...state.opens);
           setAuto('popup', `${state.opens.length} opens, slowest ${worst} ms${worst < 1000 ? '' : ' (over 1 second)'}`);
         }
-        $('input').focus();
+        $('input').focus(); fit();
         break;
       }
       case 'notified': setAuto('notify', `notification sent for ${p}`); break;
       default: break;
     }
   }
+
+  // ---- Window size: grow to fit the conversation and cards, so the chat box never gets cut off ----
+  let fitQueued = false;
+  function fit() {
+    if (fitQueued) return; fitQueued = true;
+    requestAnimationFrame(() => {
+      fitQueued = false;
+      // Natural heights, not the squeezed ones, so growing the window doesn't feed back on itself.
+      const log = $('log'); const cards = $('cards'); const notice = $('notice');
+      const logContent = (log.firstElementChild?.offsetHeight || 0) + 24; // content plus the log's own padding
+      const cardsContent = cards.childElementCount ? cards.scrollHeight : 0;
+      const noticeHeight = notice.hidden ? 0 : notice.offsetHeight + 12; // plus its top margin
+      api.fit(Math.ceil(document.querySelector('.bar').offsetHeight + noticeHeight + logContent + cardsContent + $('composer').offsetHeight));
+    });
+  }
+  new ResizeObserver(fit).observe($('cards'));
+  new MutationObserver(fit).observe($('log'), { childList: true, subtree: true, characterData: true });
+  new ResizeObserver(fit).observe($('notice'));
+
+  // ---- Remember Pass/Fail marks across restarts (this Mac only) ----
+  const MARKS_KEY = 'proving-marks-v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(MARKS_KEY) || '{}');
+    for (const [id, mark] of Object.entries(saved)) if (state.results[id] && (mark === 'pass' || mark === 'fail')) state.results[id].mark = mark;
+  } catch { /* nothing saved, or storage unavailable */ }
+  const saveMarks = () => {
+    try { localStorage.setItem(MARKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(state.results).map(([id, r]) => [id, r.mark])))); } catch { /* fine */ }
+  };
 
   // ---- Wiring ----
   async function start() {

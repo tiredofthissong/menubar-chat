@@ -64,6 +64,15 @@ test('explain: a chain names every step, and rm is flagged', () => {
   assert.match(explainToolCall('Edit', { file_path: '/tmp/p/notes.txt' }, '/tmp/p').plain, /notes\.txt/);
 });
 
+test('explain: a shell loop lists its real steps, not its keywords', () => {
+  const ex = explainToolCall('Bash', { command: 'cd ~/x; ls; for d in */; do if [ -d "$d/.git" ]; then echo "$d"; fi; done; echo end' });
+  assert.equal(ex.plain, 'Run 6 steps: go into a folder; list files; repeat for each item; check a condition; print text; print text.');
+  assert.ok(!ex.steps.some((s) => /^(do|done|then|fi)$/.test(s)));
+  const del = explainToolCall('Bash', { command: 'while read l; do rm "$l"; done < list.txt' });
+  assert.equal(del.danger, true, 'an rm inside a loop is still flagged');
+  assert.match(del.plain, /DELETE files/);
+});
+
 test('status line: short, no secrets, sticky while a card is open, counts other busy projects', () => {
   const s = new StatusBoard();
   assert.equal(s.top().line, 'Ready');

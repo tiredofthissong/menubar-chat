@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('menubarChat', {
   answer: (project, id, decision) => ipcRenderer.send('answer', { project, id, decision }),
   stop: (project) => ipcRenderer.send('stop', { project }),
   hide: () => ipcRenderer.send('hide'),
+  fit: (height) => ipcRenderer.send('fit', height),
   activity: (a) => ipcRenderer.send('activity', a),
   copy: (text) => ipcRenderer.send('copy', text),
   saveResults: (text) => ipcRenderer.invoke('save-results', text),
