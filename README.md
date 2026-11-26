@@ -2,7 +2,7 @@
 
 A small Mac menu bar window for working with Claude Code without the Terminal. Every change asks you first, work projects can't push anywhere, and it runs on its own separately billed API key.
 
-**Where it stands:** milestones 1 and 2 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes, and the window is the v1 chat window: one chat box, plain approval cards, Move to Trash for deletes. It is not the finished app yet.
+**Where it stands:** milestones 1 to 3 of v1 are in. The engine runs in a background helper with change cards, Undo and two modes; the window is the v1 chat window with plain approval cards and next-step buttons; and it behaves like a menu bar app (opens fast, tucks itself away). It is not the finished app yet.
 
 ## What's real and what isn't yet
 
@@ -15,7 +15,8 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Delete cards are red and offer **Move to Trash instead** (the delete never runs; Claude asks again to move the files to your Trash) | Real, tested |
 | Safety: Allow or Deny card for every change, push block on work projects, secret files refused, $5 daily cap, Sonnet | Real, tested |
 | Key: read from your Mac's Keychain by Claude Code itself; never stored in a file | Real (needs step 7 below) |
-| Menu bar: icon, hotkey Control-Option-Command-C, hover line, notifications, tuck-away | Real, needs your Mac to check |
+| Next-step buttons: when Claude suggests what to do next, each suggestion is a button; tapping it sends it as your message, so anything it leads to still asks you first | Real, tested |
+| Menu bar: opens under the icon with the cursor in the chat box; tucks away on Esc, a second click, clicking another app, the hotkey Control-Option-Command-C, or by itself about 5 seconds after a reply; animated icon (still with Reduce Motion); hover line; notifications with Review and Deny | Real, tested in the cloud, needs your Mac to check |
 | Projects | Only the two throwaway test projects that `npm run scratch` makes |
 | Packaged app you double-click | Not yet (milestone 6) |
 

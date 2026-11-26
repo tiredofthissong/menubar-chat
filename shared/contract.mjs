@@ -40,8 +40,9 @@ export const EVENT_TYPES = [
   'undo_result',      // { id, ok, text }
   'usage',            // { contextPct, chatUsd, spentUsd, capUsd }
   'hint',             // { text } a gentle note, e.g. an unknown /command
+  'suggestions',      // { items } up to three next steps Claude suggested; each becomes a button that sends it
   'turn_done',        // { ok, approvals, costUsd, spentUsd, capUsd }
-  'status',           // { state, line } the menu bar's hover line
+  'status',           // { state, line, pendingCards, busy } the menu bar's hover line
   'error',            // { code, text } plain words, never a stack trace
   'closed',           // {} the Claude process for this project ended
 ];

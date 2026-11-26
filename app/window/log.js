@@ -39,7 +39,20 @@ window.ChatLog = (() => {
     if (extra) n.append(extra);
     add(project, n);
   }
-  function you(project, t) { endReply(project); stick = true; add(project, el('div', 'msg msg-you', t)); }
+  function you(project, t) {
+    endReply(project); stick = true;
+    for (const b of logFor(project).querySelectorAll('.next button')) b.disabled = true; // old suggestions are done
+    add(project, el('div', 'msg msg-you', t));
+  }
+
+  // Claude's suggested next steps, one button each. A button sends that line as your message, so
+  // anything it leads to still asks you first on a card.
+  function next(project, items, pick) {
+    endReply(project);
+    const row = el('div', 'next'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Suggested next steps');
+    for (const item of items) row.append(button(item, 'btn btn-small btn-quiet', () => pick(item)));
+    add(project, row);
+  }
 
   // What changed and why, the change itself one click away, and Undo.
   function diffOf(hunks) {
@@ -98,5 +111,5 @@ window.ChatLog = (() => {
     new MutationObserver(fit).observe(log, { childList: true, subtree: true, characterData: true });
   }
 
-  return { init, show, text, endReply, line, you, change, undone, fit };
+  return { init, show, text, endReply, line, you, next, change, undone, fit };
 })();

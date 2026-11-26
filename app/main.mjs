@@ -14,6 +14,8 @@ import { validateCommand } from '../shared/contract.mjs';
 import { redact } from '../shared/redact.mjs';
 import { createHelperLink } from './helper-link.mjs';
 import { Animator } from './animator.mjs';
+import { TuckTimer } from './tuck.mjs';
+import { approvalNotice } from './notify.mjs';
 
 const { menubar } = menubarPkg;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -21,15 +23,19 @@ const ROOT = path.join(HERE, '..');
 const SCRATCH = process.env.MENUBAR_SCRATCH || path.join(app.getPath('home'), 'menubar-scratch');
 const HOTKEY = 'Control+Alt+Command+C';
 const CAP_USD = 5; // per day, across all projects (Bromo's pick, Nov 26)
-const TUCK_AFTER_MS = 5000;
 const WIDTH = 480; const MIN_HEIGHT = 480; // the window grows from here to fit, up to the bottom of the screen
 const INDEX_URL = pathToFileURL(path.join(HERE, 'window', 'index.html')).href;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-let projects = []; let spentUsd = 0; let pendingCards = 0;
-let mb = null; let animator = null; let openStartedAt = 0; let tuckTimer = null; let hotkeyOk = false;
+let projects = []; let spentUsd = 0; let pendingCards = 0; let busy = 0;
+let mb = null; let animator = null; let openStartedAt = 0; let hotkeyOk = false;
 let activity = { hovered: false, typing: false };
+const notices = new Map(); // card id -> its notification, closed once the card is answered
+const tuck = new TuckTimer({
+  hide: () => mb?.hideWindow(),
+  state: () => ({ visible: !!mb?.window?.isVisible(), ...activity, pendingCards, busy }),
+});
 
 function loadProjects() {
   try {
@@ -59,7 +65,7 @@ const link = createHelperLink({
   onReady: (m) => { spentUsd = m.spentUsd ?? spentUsd; },
   onEvent,
   onExit: () => {
-    pendingCards = 0; animator?.setState('error'); mb?.tray.setToolTip('Needs a look: the background helper stopped');
+    pendingCards = 0; busy = 0; animator?.setState('error'); mb?.tray.setToolTip('Needs a look: the background helper stopped');
     for (const p of projects) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Send your message again to restart it.' });
   },
 });
@@ -67,24 +73,23 @@ const link = createHelperLink({
 function onEvent(ev) {
   if (!ev || typeof ev !== 'object') return;
   if (ev.type === 'status') {
-    pendingCards = ev.pendingCards || 0;
+    pendingCards = ev.pendingCards || 0; busy = ev.busy || 0;
     mb?.tray.setToolTip(ev.line); animator?.setState(ev.state);
+    tuck.changed();
     return;
   }
   if (typeof ev.spentUsd === 'number') spentUsd = ev.spentUsd;
   send(ev);
   if (ev.type === 'approval' && !mb.window?.isVisible()) notifyApproval(ev);
-  if (ev.type === 'turn_done') scheduleTuck();
+  if (ev.type === 'approval_closed') { notices.get(ev.id)?.close(); notices.delete(ev.id); }
+  if (ev.type === 'turn_done') tuck.replied();
 }
 
 function notifyApproval(ev) {
   if (!Notification.isSupported()) return;
-  const n = new Notification({
-    title: `Waiting on you · ${ev.project}`,
-    body: redact(ev.card.plain || 'Claude wants to do something.').slice(0, 180),
-    actions: [{ type: 'button', text: 'Review' }, { type: 'button', text: 'Deny' }],
-    closeButtonText: 'Later',
-  });
+  const n = new Notification(approvalNotice(ev)); // Review and Deny only
+  notices.set(ev.card.id, n);
+  n.on('close', () => notices.delete(ev.card.id));
   n.on('click', () => mb.showWindow());
   n.on('action', (_e, index) => {
     if (index === 0) mb.showWindow();
@@ -92,14 +97,6 @@ function notifyApproval(ev) {
   });
   n.show();
   send({ type: 'notified', project: ev.project });
-}
-
-function scheduleTuck() {
-  clearTimeout(tuckTimer);
-  tuckTimer = setTimeout(() => {
-    if (!mb.window?.isVisible() || activity.hovered || activity.typing || pendingCards > 0) return;
-    mb.hideWindow();
-  }, TUCK_AFTER_MS);
 }
 
 function toggle(source) {
@@ -141,6 +138,7 @@ function wireIpc() {
   ipcMain.on('activity', (e, a) => {
     if (!fromOurWindow(e)) return;
     activity = { hovered: !!a?.hovered, typing: !!a?.typing };
+    tuck.changed();
   });
   ipcMain.on('copy', (e, text) => { if (fromOurWindow(e)) clipboard.writeText(redact(String(text)).slice(0, 20000)); });
 }
@@ -167,6 +165,8 @@ app.whenReady().then(() => {
 
   mb.on('ready', () => {
     animator = new Animator({ tray: mb.tray, dir: path.join(HERE, 'icons'), nativeImage, systemPreferences });
+    // Reduce Motion turned on or off while the app runs: the icon follows at once.
+    systemPreferences.subscribeWorkspaceNotification?.('NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification', () => animator.refresh());
     mb.tray.on('mouse-down', () => { if (!mb.window?.isVisible()) { openStartedAt = performance.now(); openSource = 'icon'; } });
     mb.window.webContents.setWindowOpenHandler(({ url }) => {
       if (/^https:\/\/(academy\.claude\.com|code\.claude\.com)\//.test(url)) shell.openExternal(url); // vetted learn-more hosts only
@@ -174,7 +174,9 @@ app.whenReady().then(() => {
     });
     mb.window.webContents.on('will-navigate', (ev) => ev.preventDefault());
   });
+  mb.on('after-hide', () => tuck.cancel());
   mb.on('after-show', () => {
+    tuck.cancel(); // an old reply never tucks a fresh window
     const ms = openStartedAt ? Math.round(performance.now() - openStartedAt) : null;
     openStartedAt = 0;
     send({ type: 'opened', ms, source: openSource });

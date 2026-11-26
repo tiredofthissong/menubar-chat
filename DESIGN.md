@@ -50,6 +50,20 @@ The most important screen in the app.
 - **Undo** puts the file back as it was, or removes a file Claude created. If the file changed since, it says so and changes nothing.
 - **The mode button** in the top bar reads **Ask me first** or **Plan first**. Plan first: Claude reads and plans, changes nothing, and asks before it starts; each change still gets its card.
 
+## Menu bar feel (milestone 3)
+
+- **Opening:** the window is built once at start and kept hidden, so it opens under the icon at once, with the cursor in the chat box.
+- **Tucking away:** Esc, a second click on the icon, clicking another app and the hotkey (Control-Option-Command-C) always tuck it away. After a reply it tucks itself away about 5 seconds later, but never while you type, while a card waits on you or while Claude is still working. While the pointer is over the window it waits, and counts again once the pointer leaves. Opening the window never inherits an old reply's countdown. The rules live in `app/tuck.mjs`.
+- **Icon:** still when ready, moving while Claude thinks or works, a slow blink while a card waits on you, an alert mark when something needs a look. With Reduce Motion on it shows the first frame only, and it follows the setting as soon as you change it.
+- **Hover line:** under 100 characters, most urgent project first, with "(+1 more)" when another project is busy. "Waiting on you" stays while a card is open; no other update can replace it. Keys and tokens are blanked out before it's shown.
+- **Notifications:** only when a card waits and the window is tucked away. They offer **Review** (opens the window) and **Deny**, never Allow, because Allow needs the card. The notification closes once you answer the card.
+
+## Next-step buttons
+
+- Claude is asked to end a reply with up to three "Next:" lines when a next step would clearly help, and never to suggest deleting files or spending money.
+- Those lines come out of the reply and show under it as quiet buttons (the same look as other buttons in the conversation; Send stays the one accent). A button sends its words as your message, exactly as if you'd typed them, so anything it leads to still gets its card.
+- Once you send anything, the older buttons switch off. Long suggestions wrap onto a second line.
+
 ## Known gaps
 
 - Undo copies are kept in memory, so they're gone once the app quits.

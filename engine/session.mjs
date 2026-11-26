@@ -15,6 +15,7 @@ import { buildQueryOptions } from './options.mjs';
 import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
 import { translate, newScratch } from './translate.mjs';
+import { pullNext } from './next.mjs';
 
 export class ProjectSession {
   /**
@@ -35,7 +36,7 @@ export class ProjectSession {
     this.changes = new ChangeStore(project.path);
     this.meter = createMeter();
     this.explained = new Set(); // tool calls already explained once (a card's no, or "Blocked")
-    this.approvals = 0;
+    this.approvals = 0; this.next = []; // this reply's suggested next steps
     this.broker = new ApprovalBroker({
       timeoutMs: settings.approvalTimeoutMs,
       onOpen: (card) => { this.approvals++; this.cards(); this.emit(event('approval', { card })); },
@@ -102,7 +103,11 @@ export class ProjectSession {
       this.sessionId = facts.init.sessionId; this.slashCommands = facts.init.slashCommands;
       if (fresh) this.emit(event('session', { sessionId: this.sessionId, mode: this.mode }));
     }
-    for (const ev of events) this.emit(ev);
+    for (const ev of events) {
+      if (ev.type !== 'text') { this.emit(ev); continue; }
+      const text = pullNext(ev.text, this.next); // "Next:" lines become buttons, not reply text
+      if (text) this.emit({ ...ev, text });
+    }
     if (facts.toolStarted) this.setStatus('working', facts.toolStarted.slice(0, 60));
     if (facts.requestTokens !== undefined) this.meter.onRequestTokens(facts.requestTokens);
     for (const r of facts.toolResults || []) this.onToolResult(r);
@@ -124,6 +129,8 @@ export class ProjectSession {
     this.meter.onResult(res);
     const { spent: spentUsd, capUsd } = this.budget;
     this.emit(event('usage', { ...this.meter.snapshot(), spentUsd, capUsd }));
+    if (this.next.length) this.emit(event('suggestions', { items: this.next }));
+    this.next = [];
     this.emit(event('turn_done', { ok: res.ok, approvals: this.approvals, costUsd: res.totalCostUsd ?? 0, spentUsd, capUsd }));
     this.approvals = 0;
     this.setStatus('idle');
@@ -131,6 +138,7 @@ export class ProjectSession {
   }
 
   send(text) {
+    this.next = [];
     if (this.budget.reached) { this.emit(event('error', { code: 'budget', text: `Today's spending reached the $${this.budget.capUsd} daily cap, so nothing more was sent. It starts over at midnight.` })); return; }
     // Typing while a card waits answers the card: it's a "no", with the words as the reason.
     if (this.broker.size) this.broker.denyAll('You sent a new message instead, so it was not run.');

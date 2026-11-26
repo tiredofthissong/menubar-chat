@@ -44,7 +44,7 @@ test('options: the safe shape', () => {
   assert.equal(o.allowDangerouslySkipPermissions, undefined);
   assert.equal(o.hooks.PreToolUse[0].onFailure, 'block');
   assert.equal(o.settings.apiKeyHelper, `/usr/bin/security find-generic-password -s ${KEYCHAIN_SERVICE} -w`);
-  assert.equal(o.systemPrompt.append, WHY_RULE);
+  assert.ok(o.systemPrompt.append.startsWith(WHY_RULE));
   assert.equal(o.maxBudgetUsd, 4.5);
   assert.equal(o.model, 'sonnet', 'always Sonnet unless told otherwise, never Claude Code\'s Opus default');
   assert.ok(o.disallowedTools.includes('Bash(git push *)'));

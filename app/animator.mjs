@@ -43,5 +43,8 @@ export class Animator {
     }, FRAME_MS[state] || 300);
   }
 
+  /** Reduce Motion changed: show the same state again, moving or still. */
+  refresh() { const s = this.state; this.stop(); this.state = null; this.setState(s); }
+
   stop() { if (this.timer) { this.clearTimer(this.timer); this.timer = null; } }
 }

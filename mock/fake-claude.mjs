@@ -28,6 +28,7 @@ export const SCENARIOS = {
   plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
   sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
   trash: [{ say: 'Cleaning up.\n' }, { tool: 'Bash', input: { command: 'rm old-notes.txt' } }],
+  next: [{ say: 'Done looking.\nNext: Run the tests\n' }, { say: '- **Next:** Fix the typo in notes.txt\nNext: Run the tests\n' }],
 };
 // Do an Edit for real (tests run in a temp folder) and report it the way Claude Code does.
 function applyEdit(cwd, input) {

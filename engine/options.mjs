@@ -7,6 +7,7 @@
 //  - The API key comes from the macOS Keychain through apiKeyHelper, per session. It never
 //    sits in this process, a file, or ~/.claude/settings.json.
 // Adapted from this project's code-health architect prototype.
+import { NEXT_RULE } from './next.mjs';
 import { isAllowedMode } from '../policy/modes.mjs';
 import { denyRules } from '../policy/rules.mjs';
 
@@ -52,7 +53,7 @@ export function buildQueryOptions(a) {
     disallowedTools: denyRules({ project: a.project, hubPaths: a.hubPaths || [] }),
     settingSources: ['user', 'project', 'local'], // same ~/.claude, CLAUDE.md and skills as the Terminal
     includePartialMessages: true,
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: WHY_RULE },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${WHY_RULE} ${NEXT_RULE}` },
     env: safeEnv(),
   };
   if (a.keychainService) options.settings = { apiKeyHelper: `/usr/bin/security find-generic-password -s ${a.keychainService} -w` };

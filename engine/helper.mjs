@@ -27,7 +27,7 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
   function publish(ev) {
     if (ev.type === 'status') {
       const top = status.top();
-      const line = { ...top, pendingCards: pendingCards() };
+      const line = { ...top, pendingCards: pendingCards(), busy: status.busy() };
       const key = JSON.stringify(line);
       if (key !== last) { last = key; send(redactDeep(event('status', line))); }
       return;

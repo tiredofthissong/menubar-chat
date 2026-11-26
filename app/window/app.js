@@ -40,12 +40,15 @@
     showMode(); Log.show(name);
   }
 
+  function sendText(project, text) {
+    Log.you(project, text);
+    api.send(project, text).then(said);
+    setBusy(project, true);
+  }
   function send() {
     const text = $('input').value.trim();
     if (!text || !state.current) return;
-    Log.you(state.current, text);
-    api.send(state.current, text).then(said);
-    setBusy(state.current, true);
+    sendText(state.current, text);
     $('input').value = ''; activity();
   }
   let hovered = false;
@@ -84,6 +87,7 @@
       case 'blocked': Log.line(p, `Blocked: ${ev.plain}`, 'line-blocked'); break;
       case 'tool_failed': Log.line(p, ev.text); break;
       case 'hint': hint(p, ev); break;
+      case 'suggestions': Log.next(p, (ev.items || []).slice(0, 3), (item) => sendText(p, item)); break;
       case 'session': if (ev.sessionId === null) { setBusy(p, false); Log.line(p, 'New chat started.'); } break;
       case 'change': Log.change(p, ev, (id) => api.undo(p, id).then(said)); break;
       case 'undo_result': if (ev.ok) Log.undone(ev.id); Log.line(p, ev.text, ev.ok ? '' : 'line-blocked'); break;

@@ -26,6 +26,9 @@ export class StatusBoard {
     this.byProject.set(project, cur);
   }
 
+  /** How many projects Claude is thinking or working in right now. */
+  busy() { return [...this.byProject.values()].filter((s) => s.state === 'thinking' || s.state === 'working').length; }
+
   top() {
     const all = [...this.byProject.entries()].sort((a, b) => RANK[b[1].state] - RANK[a[1].state]);
     if (!all.length) return { state: 'idle', line: 'Ready' };

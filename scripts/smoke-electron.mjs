@@ -79,6 +79,13 @@ app.whenReady().then(() => setTimeout(async () => {
     change: document.querySelector('.change summary')?.textContent, undo: document.querySelector('.change button')?.textContent,
     fix: [...document.querySelectorAll('.line-hint button')].map((b) => b.textContent) }; })()`);
   console.log('SMOKE-CARD ' + JSON.stringify(card));
+  // Milestone 3: a reply's next steps become buttons, and opening the window puts the cursor in the chat box.
+  say({ type: 'text', text: 'I fixed the typo.\n' }); say({ type: 'suggestions', items: ['Run the tests', 'Show me what changed'] });
+  say({ type: 'opened', ms: 40, source: 'icon' });
+  await new Promise((r) => setTimeout(r, 300));
+  console.log('SMOKE-NEXT ' + JSON.stringify(await w.webContents.executeJavaScript(`({
+    buttons: [...document.querySelectorAll('.next button')].map((b) => b.textContent), group: document.querySelector('.next')?.getAttribute('aria-label'),
+    cursorInChatBox: document.activeElement?.id === 'input' })`)));
   // Keyboard: Tab from the top reaches every control, in order, and each shows a focus ring.
   await w.webContents.executeJavaScript(`document.activeElement?.blur(); document.body.focus()`);
   const walk = [];
