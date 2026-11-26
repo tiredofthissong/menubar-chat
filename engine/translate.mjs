@@ -6,6 +6,7 @@
 // Adapted from this project's code-health architect prototype.
 import { event } from '../shared/contract.mjs';
 import { explainToolCall } from '../shared/explain.mjs';
+import { redact } from '../shared/redact.mjs';
 
 const WHY = /(?:^|\n)\s*Why:\s*([^\n]+)/;
 const LONG_LINE = 400;
@@ -32,6 +33,16 @@ const resultText = (c) => (typeof c === 'string' ? c
 /** Per-session scratch state; translate() is the only thing that changes it. */
 export const newScratch = (cwd = '/') => ({ cwd, partialSeen: false, textSinceTool: '', pending: '', whyByTool: new Map() });
 
+/** Claude's "Why:" line for a tool call. Its message can land a moment after the ask, so wait up to 0.2 s. */
+export async function whyFor(st, id) {
+  for (let n = 0; id && st && n < 20; n++) {
+    const w = st.whyByTool.get(id);
+    if (w) return redact(w.replace(/\s+/g, ' ')).slice(0, 160);
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return '';
+}
+
 export function translate(m, st) {
   const events = []; const facts = {};
   const top = !m?.parent_tool_use_id; // sub-agent chatter stays out of the main chat
@@ -55,11 +66,9 @@ export function translate(m, st) {
       if (b.type !== 'tool_use') continue;
       const line = explainToolCall(b.name, b.input, st.cwd).plain;
       events.push(event('tool', { id: b.id, tool: b.name, line }));
-      if (EDIT_TOOLS.has(b.name)) {
-        const why = st.textSinceTool.match(WHY)?.[1]?.trim() || null;
-        if (why) st.whyByTool.set(b.id, why);
-        events.push(event('why', { seen: Boolean(why), why, line }));
-      }
+      const why = st.textSinceTool.match(WHY)?.[1]?.trim() || null;
+      if (why) st.whyByTool.set(b.id, why); // the approval card shows it as Claude's reason
+      if (EDIT_TOOLS.has(b.name)) events.push(event('why', { seen: Boolean(why), why, line }));
       st.textSinceTool = '';
       facts.toolStarted = line;
     }

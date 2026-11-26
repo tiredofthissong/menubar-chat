@@ -25,6 +25,8 @@ export const SCENARIOS = {
   secret: [{ tool: 'Read', input: { file_path: '.env' } }],
   leak: [{ chunks: ['Your key is sk-ant-ab', 'cdef1234567890 ok\n'] }],
   hello: [{ say: 'Hello from the fake Claude.\n' }],
+  web: [{ say: 'Why: you asked which plants need shade.\n' }, { tool: 'WebFetch', input: { url: 'https://example.org/shade-plants', prompt: 'List shade plants' } }],
+  npm: [{ tool: 'Bash', input: { command: 'npm install', description: 'Install the garden app packages' } }],
   plan: [{ say: 'Here is my plan.\n' }, { tool: 'ExitPlanMode', input: { plan: '1. Fix the typo in notes.txt' } }],
   sub: [{ say: 'Main line.\n' }, { say: 'Sub-agent chatter.\n', parent: 'toolu_parent' }],
   trash: [{ say: 'Cleaning up.\n' }, { tool: 'Bash', input: { command: 'rm old-notes.txt' } }],

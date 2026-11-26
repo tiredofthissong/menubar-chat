@@ -18,7 +18,11 @@
 
 The most important screen in the app.
 
-- One plain sentence first ("Run 3 steps: download the latest changes; make a folder; copy files.").
+- **The same shape on every card** (Bromo, Nov 26), top to bottom:
+  1. **"Claude wants to …"** in plain words: "change notes.txt", "open a web page on example.org", "run 3 commands, in this order". A tool's own name shows only when the app doesn't know the tool, and then it says so.
+  2. **What kind of step**, from one fixed list: Only looks, Changes files, Runs a program, Uses the internet, Uses a connected app, Deletes files (red). Plus the file, folder, site or app, unless the first line already names it.
+  3. **"Why:"** in Claude's own words. Claude is asked to write a "Why:" line before every step that may need permission, not only edits; failing that, the command's own description. With no reason the card says so: "Claude didn't say. If that matters, Deny and ask."
+- **Calmer over time.** A kind of step's learning line shows once per chat. Later cards of that kind offer only a lesson or passage not yet shown, under "More on this kind of step:", or nothing at all.
 - A chained command lists **every** step, numbered, so nothing hides behind the first one. A delete step is red.
 - The exact command is one click away, under **Show the exact command**, with a **Copy** button.
 - **Deny** and **Allow once** look the same and neither is selected, so a stray Enter can't approve. Deny comes first.
@@ -101,6 +105,7 @@ The most important screen in the app.
 
 - **Claude's questions are a card you tap.** When Claude asks a multiple-choice question, the card shows one button per answer, with Claude's note under each. One question with one pick sends on the tap; more questions, or "pick any", send with **Send answers**, which stays greyed out until each question has a pick. Typing in the chat box answers it in your own words, and **Skip** says no. Nothing is picked for you. The old card had only Allow, which let the question run with no answer, so Claude said it "didn't come through".
 - **The meter no longer drops spend after a restart.** Claude Code reports a running cost from $0 for each run of its program, so the app now keeps one total per run and adds them up. Before, a New chat, a past chat or a skill reload in a project dropped what that project had already spent today. A skill reload also keeps the chat's own cost.
+- **Permission cards in one shape.** See The approval card above.
 - **How accurate it is.** The figures update when each reply finishes, from Claude Code's own estimate at list prices. The Anthropic Console has the exact bill; the panel says so.
 
 ## Known gaps

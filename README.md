@@ -13,6 +13,7 @@ A small Mac menu bar window for working with Claude Code without the Terminal. E
 | Change cards: every file change shows one plain sentence, Claude's reason, the change itself one click away, and an **Undo** button | Real, tested |
 | One chat box, no Terminal: pasted Terminal lines become one command Claude runs after you allow it; `claude ...`, `!cmd` and mistyped /commands get a one-line fix | Real, tested |
 | Delete cards are red and offer **Move to Trash instead** (the delete never runs; Claude asks again to move the files to your Trash) | Real, tested |
+| Permission cards: the same shape every time: what Claude wants in plain words, what kind of step it is, and Claude's reason (or a plain note that it gave none). The learning line shows once per kind of step in a chat | Real, tested |
 | Safety: Allow or Deny card for every change, push block on work projects, secret files refused, $5 daily cap, Sonnet | Real, tested |
 | Key: read from your Mac's Keychain by Claude Code itself; never stored in a file | Real (needs step 7 below) |
 | Next-step buttons: when Claude suggests what to do next, each suggestion is a button; tapping it sends it as your message, so anything it leads to still asks you first | Real, tested |

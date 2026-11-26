@@ -3,6 +3,7 @@
 // so a hidden step (like the cp in git pull && mkdir && cp) can't slip past unread.
 import path from 'node:path';
 import { redact } from './redact.mjs';
+import { describeTool, commandEffect, EFFECTS } from './describe.mjs';
 
 const GLOSS = [
   [/^git\s+pull\b/, 'download the latest changes'],
@@ -75,7 +76,10 @@ const sentence = (words) => words.charAt(0).toUpperCase() + words.slice(1);
 
 const short = (p, cwd) => { const r = path.relative(cwd || '/', String(p || '')); return r && !r.startsWith('..') ? r : String(p || ''); };
 
-/** @returns {{ plain: string, steps: string[], items?: {say: string, target: string, danger: boolean}[], command?: string, danger: boolean }} */
+/**
+ * Every card also carries describe.mjs's fixed shape: what, effect, where, reason.
+ * @returns {{ plain: string, what: string, effect: string, where: string, reason: string, steps: string[], items?: {say: string, target: string, danger: boolean}[], command?: string, danger: boolean }}
+ */
 export function explainToolCall(toolName, input = {}, cwd = '/') {
   if (toolName === 'Bash') {
     const steps = splitSteps(input.command);
@@ -84,11 +88,15 @@ export function explainToolCall(toolName, input = {}, cwd = '/') {
     const plain = steps.length > 1 ? `Run ${steps.length} steps: ${glossed.join('; ')}.` : `Run a command to ${glossed[0] || 'do something'}.`;
     // items: each step in plain words for the card, with the file it touches (if any).
     const items = steps.map((st, n) => ({ say: sentence(glossed[n]), target: stepTarget(st), danger: /^(sudo\s+)?rm\b/.test(st.replace(/^(\w+=\S+\s+)+/, '')) }));
-    return { plain, steps: steps.map(redact), items, command: redact(input.command), danger };
+    const what = steps.length > 1 ? `run ${steps.length} commands, in this order` : `run a command to ${glossed[0] || 'do something'}`;
+    const reason = redact(String(input.description || '').replace(/\s+/g, ' ').trim()).slice(0, 160);
+    const effect = commandEffect(steps, danger);
+    return { plain, what, effect, kindLabel: EFFECTS[effect], where: steps.length === 1 ? items[0].target : '', reason, steps: steps.map(redact), items, command: redact(input.command), danger };
   }
-  if (toolName === 'Edit' || toolName === 'MultiEdit') return { plain: `Change ${short(input.file_path, cwd)}.`, steps: [], danger: false };
-  if (toolName === 'Write') return { plain: `Create or replace ${short(input.file_path, cwd)} (replacing a whole file is harder to undo).`, steps: [], danger: false };
-  if (toolName === 'ExitPlanMode') return { plain: 'The plan is ready. Start on it? Claude still asks before each change.', steps: [], danger: false };
-  if (toolName === 'Read') return { plain: `Read ${short(input.file_path, cwd)}.`, steps: [], danger: false };
-  return { plain: `Use ${toolName}.`, steps: [], danger: false };
+  const shape = describeTool(toolName, input, cwd);
+  const base = { ...shape, kindLabel: EFFECTS[shape.effect], steps: [], danger: false };
+  if (toolName === 'Edit' || toolName === 'MultiEdit') return { ...base, plain: `Change ${short(input.file_path, cwd)}.` };
+  if (toolName === 'Write') return { ...base, plain: `Create or replace ${short(input.file_path, cwd)} (replacing a whole file is harder to undo).` };
+  if (toolName === 'ExitPlanMode') return { ...base, plain: 'The plan is ready. Start on it? Claude still asks before each change.' };
+  return { ...base, plain: `${sentence(shape.what)}.` };
 }

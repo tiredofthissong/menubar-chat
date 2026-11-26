@@ -16,7 +16,7 @@ export const CLIENT_APP = 'menubar-chat/0.0.1';
 export const KEYCHAIN_SERVICE = 'claude-menubar-anthropic';
 // Bromo's pick (Nov 26): Sonnet, about half the cost of Opus. The alias follows the latest Sonnet.
 export const DEFAULT_MODEL = 'sonnet';
-export const WHY_RULE = 'Before each file edit, write one short line that starts with "Why:" saying why you are making it.';
+export const WHY_RULE = 'Before each file edit, command, web lookup or other step that may need permission, write one short line that starts with "Why:" saying in plain words why you need it.';
 
 export function safeEnv(source = process.env) {
   const env = { CLAUDE_AGENT_SDK_CLIENT_APP: CLIENT_APP };

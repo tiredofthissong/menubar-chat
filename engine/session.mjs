@@ -14,7 +14,7 @@ import { createMeter } from '../usage/meter.mjs';
 import { buildQueryOptions } from './options.mjs';
 import { checkInit } from './init-check.mjs';
 import { createInputQueue } from './input-queue.mjs';
-import { translate, newScratch } from './translate.mjs';
+import { translate, newScratch, whyFor } from './translate.mjs';
 import { pullNext } from './next.mjs';
 import { createLearnPicker } from '../shared/learn.mjs';
 import { skillDirs, skillStamp } from './skills.mjs';
@@ -53,6 +53,7 @@ export class ProjectSession {
     const asks = toolName === 'AskUserQuestion' ? questionCard(input) : null; // a question gets a card you tap
     if (toolName === 'AskUserQuestion' && !asks) return { behavior: 'deny', message: MALFORMED, toolUseID: opts?.toolUseID };
     const card = asks || explainToolCall(toolName, input, this.project.path);
+    if (!asks) card.reason = (await whyFor(this.scratch, opts?.toolUseID)) || card.reason; // Claude's own "Why:" line first
     const answer = await this.broker.ask(toolName, input, opts, asks || { ...card, learn: this.learn.pick(toolName, input, card.danger) });
     // Leaving Plan first: once you allow the plan, Claude Code goes back to asking before each step.
     if (toolName === 'ExitPlanMode' && answer.behavior === 'allow' && this.mode === 'plan') this.noteMode('default');

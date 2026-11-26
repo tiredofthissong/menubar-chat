@@ -93,15 +93,20 @@ export function topicFor(toolName, input = {}, danger = false) {
  * One picker per chat: each card gets the most useful pick it hasn't had yet.
  * @returns {{ pick(toolName, input, danger): { topic, line, course, academy?, docs?, seen? } }}
  */
+export const MORE_LINE = 'More on this kind of step:';
 export function createLearnPicker() {
-  const used = new Set();
+  const used = new Set(); const told = new Set();
   return {
     pick(toolName, input, danger) {
       const topic = topicFor(toolName, input, danger);
       // A lesson or passage shown earlier in this chat, on any kind of card, isn't offered again.
+      // The plain line shows once per kind of step in a chat (Bromo, Nov 26: cards shouldn't get
+      // annoying over time); after that a card only offers what's new, or nothing at all.
+      const again = told.has(topic); told.add(topic);
+      const line = again ? MORE_LINE : TOPICS[topic].line;
       const p = PICKS[topic].find((x) => !used.has(x.academy) || !used.has(x.docs));
-      if (!p) return { topic, line: TOPICS[topic].line, course: PICKS[topic][0].course, seen: true };
-      const out = { topic, line: TOPICS[topic].line, course: p.course };
+      if (!p) return { topic, ...(again ? {} : { line }), course: PICKS[topic][0].course, seen: true };
+      const out = { topic, line, course: p.course };
       if (!used.has(p.academy)) out.academy = p.academy;
       if (!used.has(p.docs)) out.docs = p.docs;
       used.add(p.academy); used.add(p.docs);

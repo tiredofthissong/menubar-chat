@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { LEARN_HOSTS, COURSES, TOPICS, PICKS, ALL_LINKS, isLearnLink, learnFor, topicFor, createLearnPicker, docsLink } from '../shared/learn.mjs';
+import { LEARN_HOSTS, COURSES, TOPICS, PICKS, ALL_LINKS, isLearnLink, learnFor, topicFor, createLearnPicker, docsLink, MORE_LINE } from '../shared/learn.mjs';
 import { visibleText } from '../scripts/check-learn.mjs';
 import { entryFor, summarize, readLog, createLearning } from '../app/learning.mjs';
 import { createChatRecord, entryText, appendHandoff } from '../engine/wrapup.mjs';
@@ -58,8 +58,9 @@ test('Learn more fits the step, and one chat never offers the same lesson or pas
   const first = p.pick('Edit', {}); const second = p.pick('Write', {}); const third = p.pick('Edit', {});
   assert.equal(first.docs, PICKS.edits[0].docs); assert.match(first.docs, /#undo-changes-with-checkpoints:~:text=File%20edits%20are%20reversible$/);
   assert.equal(second.docs, PICKS.edits[1].docs, 'the next card gets the next most useful passage');
+  assert.match(first.line, /Undo/); assert.equal(second.line, MORE_LINE, 'the plain line shows once a chat');
   assert.equal(third.seen, true); assert.equal(third.academy, undefined); assert.equal(third.docs, undefined);
-  assert.match(third.line, /Undo/, 'the plain line stays');
+  assert.equal(third.line, undefined, 'nothing new: no learning box at all');
   // Across kinds: after two command cards, a chained command offers only what's new (its passage, not the lesson).
   const q = createLearnPicker(); q.pick('Bash', { command: 'ls' }); q.pick('Bash', { command: 'ls' });
   const chain = q.pick('Bash', { command: 'a && b' });

@@ -140,6 +140,10 @@ progress::-webkit-progress-value { background: var(--color-fg); border-radius: v
 .card-steps li.danger { color: var(--color-danger); font-weight: var(--weight-medium); }
 .step-target { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-muted); overflow-wrap: anywhere; }
 .card-steps li.danger .step-target { color: var(--color-danger); }
+.card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.card-where { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-muted); overflow-wrap: anywhere; }
+.pill-danger { background: transparent; border: 1px solid var(--color-danger); color: var(--color-danger); }
+.card-why { font-size: var(--text-sm); line-height: var(--leading-normal); margin-bottom: var(--space-2); }
 .card-warn { color: var(--color-danger); font-size: var(--text-xs); font-weight: var(--weight-medium); margin-bottom: var(--space-2); }
 .card details { margin-bottom: var(--space-2); }
 .exact-body { display: flex; gap: var(--space-2); align-items: flex-start; margin-top: var(--space-1); }

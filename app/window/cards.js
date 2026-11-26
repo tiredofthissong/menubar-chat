@@ -1,4 +1,6 @@
 // cards.js - the approval card, the most important screen in the app. Plain script.
+// Every card has the same shape, top to bottom: "Claude wants to …", what kind of step it is
+// (one fixed list) and where, then "Why:" in Claude's own words, so cards read alike (Bromo, Nov 26).
 // Rules (DESIGN.md): one plain line first; a chain names every step, numbered; the exact command
 // is one click away; Deny and Allow look the same and neither is pre-selected (a stray Enter
 // can't approve); a delete is a red card that offers Move to Trash instead. Claude's own
@@ -81,6 +83,15 @@ window.ChatCards = (() => {
    * @param {object} card   from the helper: { id, toolName, plain, items?, command?, danger, trash }
    * @param {{ answer: (decision: string) => void, copy: (text: string) => void, learn?: (url: string) => void }} act
    */
+  // What kind of step (the helper's fixed list), and where. The place is left out when the first line names it.
+  function meta(card, said) {
+    if (typeof card.kindLabel !== 'string' || !card.kindLabel) return null;
+    const m = el('div', 'card-meta');
+    m.append(el('span', card.effect === 'deletes' ? 'pill pill-danger' : 'pill pill-quiet', card.kindLabel));
+    if (card.where && !said.includes(card.where)) m.append(el('span', 'card-where', card.where));
+    return m;
+  }
+
   function render(project, card, act) {
     if (card.kind === 'question' && Array.isArray(card.questions)) return question(project, card, act);
     const danger = card.danger === true;
@@ -89,7 +100,10 @@ window.ChatCards = (() => {
     c.append(el('div', 'card-kicker', `Claude is asking · ${project}`));
     const list = steps(card);
     // One plain line first. A chained command lists every step below it, so the line only counts them.
-    c.append(el('p', 'card-ask', list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`)));
+    const said = card.what ? `Claude wants to ${card.what}${list ? ':' : '.'}` : (list ? `Run ${list.count} steps, in this order:` : (card.plain || `Use ${card.toolName}.`));
+    c.append(el('p', 'card-ask', said));
+    const mt = meta(card, said); if (mt) c.append(mt);
+    if (card.what) c.append(el('p', card.reason ? 'card-why' : 'card-why muted', card.reason ? `Why: ${card.reason}` : 'Why: Claude didn\'t say. If that matters, Deny and ask.'));
     if (list) c.append(list.ol);
     if (danger) c.append(el('p', 'card-warn', 'This deletes files. Deleted files may not come back. Move to Trash keeps them in your Mac\'s Trash.'));
     const ex = exact(card, act.copy); if (ex) c.append(ex);

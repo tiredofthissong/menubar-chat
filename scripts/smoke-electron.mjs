@@ -3,6 +3,7 @@
 import { app, BrowserWindow } from 'electron';
 import '../app/main.mjs';
 import { learnFor } from '../shared/learn.mjs';
+import { explainToolCall } from '../shared/explain.mjs';
 
 app.whenReady().then(() => setTimeout(async () => {
   const w = BrowserWindow.getAllWindows()[0];
@@ -71,16 +72,21 @@ app.whenReady().then(() => setTimeout(async () => {
   say({ type: 'hint', kind: 'slash-typo', suggestion: 'design-rules', text: "There's no /desgin-rules in this project. Did you mean /design-rules?" });
   say({ type: 'change', id: 'toolu_smoke', file: 'notes.txt', sentence: 'Changed 1 line in notes.txt. Why: notes.txt has a typo.', canUndo: true,
     diff: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-teh notes', '+the notes'] }] });
-  say({ type: 'approval', card: { id: 'smoke-card', toolName: 'Bash', danger: true, trash: true, defaultChoice: 'deny', command: 'git pull && rm old-notes.txt', learn: learnFor('Bash', {}, true),
-    items: [{ say: 'Download the latest changes', target: '', danger: false }, { say: 'DELETE files', target: 'old-notes.txt', danger: true }] } });
+  say({ type: 'approval', card: { id: 'smoke-card', toolName: 'Bash', trash: true, defaultChoice: 'deny', learn: learnFor('Bash', {}, true),
+    ...explainToolCall('Bash', { command: 'git pull && rm old-notes.txt' }), reason: 'old-notes.txt is the copy you said to drop.' } });
   await new Promise((r) => setTimeout(r, 400));
   const card = await w.webContents.executeJavaScript(`(() => { const c = document.querySelector('.card'); return {
-    red: c.classList.contains('danger'), ask: c.querySelector('.card-ask').textContent, steps: [...c.querySelectorAll('.card-steps li')].map((l) => l.textContent),
+    red: c.classList.contains('danger'), ask: c.querySelector('.card-ask').textContent, kind: c.querySelector('.card-meta')?.textContent, why: c.querySelector('.card-why')?.textContent, steps: [...c.querySelectorAll('.card-steps li')].map((l) => l.textContent),
     buttons: [...c.querySelectorAll('.card-actions button')].map((b) => [b.textContent, b.className]), focusedInCard: c.contains(document.activeElement),
     change: document.querySelector('.change summary')?.textContent, undo: document.querySelector('.change button')?.textContent,
     fix: [...document.querySelectorAll('.line-hint button')].map((b) => b.textContent),
     learn: c.querySelector('.card-learn-line')?.textContent, learnButtons: [...c.querySelectorAll('.card-learn button')].map((b) => b.textContent) }; })()`);
   console.log('SMOKE-CARD ' + JSON.stringify(card));
+  if (process.env.SMOKE_SHOT) { // the permission card as you'd see it
+    const fs = await import('node:fs'); w.show();
+    await w.webContents.executeJavaScript(`document.querySelector('.card').scrollIntoView({ block: 'start' })`); await new Promise((r) => setTimeout(r, 300));
+    fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-card.png'), (await w.webContents.capturePage()).toPNG());
+  }
   // Milestone 3: a reply's next steps become buttons, and opening the window puts the cursor in the chat box.
   say({ type: 'text', text: 'I fixed the typo.\n' }); say({ type: 'suggestions', items: ['Run the tests', 'Show me what changed'] });
   say({ type: 'opened', ms: 40, source: 'icon' });
