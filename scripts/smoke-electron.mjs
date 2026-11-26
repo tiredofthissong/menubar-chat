@@ -149,7 +149,7 @@ app.whenReady().then(() => setTimeout(async () => {
   const learnTitles = await w.webContents.executeJavaScript(`[...document.querySelectorAll('#panel-usage .panel-title')].map((h) => h.textContent)`);
   if (process.env.SMOKE_SHOT) { const fs = await import('node:fs'); fs.writeFileSync(process.env.SMOKE_SHOT.replace(/\.png$/, '-usage.png'), (await w.webContents.capturePage()).toPNG()); }
   await w.webContents.executeJavaScript(`document.getElementById('spend').click()`); await wait(200);
-  console.log('SMOKE-PANEL ' + JSON.stringify({ ...panel, escClosed, usage, bars: await w.webContents.executeJavaScript(`document.querySelectorAll('progress').length`) }));
+  console.log('SMOKE-PANEL ' + JSON.stringify({ ...panel, escClosed, usage, version: await w.webContents.executeJavaScript(`[...document.querySelectorAll('.panel-note')].map((n) => n.textContent).find((t) => t.startsWith('Menu Bar Chat version')) || ''`), bars: await w.webContents.executeJavaScript(`document.querySelectorAll('progress').length`) }));
   // Milestone 5: starters in an empty chat fill the box (and send nothing); Usage has a Learning part; Wrap up asks first.
   const starters = await w.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('#log .starters button')];
     const sent = document.querySelectorAll('.msg-you').length; b[0]?.click();

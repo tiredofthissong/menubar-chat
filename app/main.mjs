@@ -6,6 +6,7 @@
 import { app, dialog, globalShortcut, ipcMain, Menu, Notification, nativeImage, systemPreferences, clipboard, shell, screen, utilityProcess } from 'electron';
 import menubarPkg from 'menubar';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { KEYCHAIN_SERVICE, DEFAULT_MODEL } from '../engine/options.mjs';
@@ -107,6 +108,8 @@ function toggle(source) {
 }
 let openSource = 'icon';
 
+const APP_VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version; } catch { return app.getVersion(); } })();  // shown in Usage, so a test can tell which build runs
+
 // Only our own window may call these.
 const fromOurWindow = (e) => e.senderFrame?.url === INDEX_URL;
 
@@ -118,7 +121,7 @@ function wireIpc() {
       projects: projects.view(),
       scratch: SCRATCH, keychainOk: await keychainHasKey(), hotkey: hotkeyOk ? 'Control+Option+Command+C' : null,
       capUsd: CAP_USD, spentUsd, model: 'Sonnet', reducedMotion: Animator.reducedMotion(systemPreferences),
-      versions: { app: app.getVersion(), electron: process.versions.electron, os: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim() },
+      versions: { app: APP_VERSION, electron: process.versions.electron, os: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim() },
     };
   });
   // Chat commands: checked here, then again in the helper, before anything acts on them.

@@ -26,13 +26,17 @@ test('reading the project the ways Claude does goes ahead, quoted words included
   for (const c of ['ls -la', "find . -type f -not -path './.git/*' | head -50", 'for f in *.json *.md; do echo "=== $f ==="; head -40 "$f"; done',
     'wc -l * 2>/dev/null', 'echo "=== open questions ===" && grep -n "TODO" notes.txt', 'grep -rn "sudo" .', 'python3 -m json.tool plants.json',
     'cat plants.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))"', `ls -la ${root} && cat ${root}/notes.txt`,
-    'ls -la && echo "---" && cat README.md 2>/dev/null || echo "no readme"']) assert.equal(go(c), true, c);
+    'ls -la && echo "---" && cat README.md 2>/dev/null || echo "no readme"', 'node -e "console.log(require(\'./plants.json\').length)"',
+    // His second card (Nov 26): a loop over $(find ...) that skips node_modules.
+    `for f in $(find . -type f -not -path './node_modules/*' -not -path './.git/*'); do echo "=== $f ==="; head -50 "$f"; done`,
+    'for f in $(git ls-files); do wc -l "$f"; done', 'cat $(find . -name "*.json")']) assert.equal(go(c), true, c);
 });
 
 test('quotes, backslashes and typed-in code cannot hide a step that should ask', () => {
   for (const c of ['"sudo" ls', 'echo hi; "rm" x', 'su\\do ls', 'bash -c "ls"', 'echo x | python3', 'env ls', "cat '../x'", 'cat a/../../x',
     'cat "/etc/passwd"', 'cat "$HOME/x"', `python3 -c "import os; os.system('ls')"`, `node -e "require('child_process').exec('x')"`,
-    `python3 -c "import shutil; shutil.rmtree('x')"`, 'python3 -c "import urllib.request"']) assert.equal(go(c), false, c);
+    `python3 -c "import shutil; shutil.rmtree('x')"`, 'python3 -c "import urllib.request"', "$'\\163udo' ls", 'X=1 "sudo" ls', "ls; 'rm' x",
+    'for f in $(find / -name x); do cat "$f"; done', 'echo $(rm x)', 'echo $(whoami)', 'echo $(find ..)', 'ls "$(dirname "$PWD")"']) assert.equal(go(c), false, c);
 });
 
 test('a look outside the folder is spotted, for commands and for Read, Glob and Grep', () => {

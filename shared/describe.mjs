@@ -24,7 +24,7 @@ const rel = (p, cwd) => { const r = path.relative(cwd || '/', String(p || '')); 
 const host = (u) => { try { return new URL(String(u)).hostname; } catch { return ''; } };
 
 // Commands that only look, and ones that reach the internet. Anything else counts as running a program.
-const LOOKS = /^(ls|pwd|cat|head|tail|wc|sort|grep|rg|find|echo|printf|which|file|stat|du|df|tree|diff|test|\[\[?|git\s+(status|log|diff|show|branch|remote)\b|(npm|node|python3?)\s+(-v|--version)\b|(for|while|until|if|elif|case|cd)\b)/;
+const LOOKS = /^(ls|pwd|cat|head|tail|wc|sort|grep|rg|find|echo|printf|which|file|stat|du|df|tree|diff|test|\[\[?|git\s+(status|log|diff|show|branch|remote|ls-files|rev-parse)\b|(npm|node|python3?)\s+(-v|--version)\b|(for|while|until|if|elif|case|cd)\b)/;
 const NET = /^(curl|wget|ssh|scp|rsync|gh\b|git\s+(pull|push|fetch|clone)\b|(npm|npx|pnpm|yarn)\s+(install|i|ci|add|publish)\b|pip3?\s+install\b|brew\s+(install|upgrade)\b)/;
 const bare = (s) => s.replace(/^(sudo\s+)?(\w+=\S+\s+)*/, '');
 export function commandEffect(steps, danger) {

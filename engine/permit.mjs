@@ -8,7 +8,8 @@
 import { explainToolCall } from '../shared/explain.mjs';
 import { checkToolCall } from '../policy/rules.mjs';
 import { questionCard, MALFORMED } from '../policy/questions.mjs';
-import { devModeAllows, looksOutside } from '../policy/devmode.mjs';
+import { devModeAllows, looksOutside, pointsOutside } from '../policy/devmode.mjs';
+import { EFFECTS } from '../shared/describe.mjs';
 import { createWebPass, webPassAllows, WEB_TOOLS, clockTime } from '../policy/webpass.mjs';
 import { whyFor } from './translate.mjs';
 
@@ -47,7 +48,9 @@ export function createPermit(s, { now } = {}) {
     const card = explainToolCall(toolName, input, s.project.path);
     if (!looksOutside(toolName, input, s.project.path, card)) return null;
     const where = /^\.\.\/?$/.test(card.where || '') ? 'the folder that holds this project' : card.where;
-    return askPerson(toolName, input, { toolUseID, signal }, { ...card, where, kindLabel: OUTSIDE_LABEL });
+    // A look that only failed the other checks (a hidden command, typed-in code) is labelled as running a program.
+    const outside = toolName !== 'Bash' || pointsOutside(input.command, s.project.path);
+    return askPerson(toolName, input, { toolUseID, signal }, { ...card, where, ...(outside ? { kindLabel: OUTSIDE_LABEL } : { effect: 'runs', kindLabel: EFFECTS.runs }) });
   }
 
   /** Allow for an hour was pressed. The line is what the window shows under the card. */

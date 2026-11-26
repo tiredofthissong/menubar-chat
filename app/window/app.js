@@ -117,12 +117,12 @@
     Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); }, copy: (t) => { api.copy(t); notice('Copied.'); } });
     Panel.init({
       api, notice, select: selectProject, setProjects, projects: () => state.projects, current: () => state.current,
-      usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, ...(state.chat.get(state.current) || {}) }),
+      usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, version: state.version, ...(state.chat.get(state.current) || {}) }),
     });
     api.onEvent(onEvent);
     const info = (await api.init()) || {};
     state.projects = info.projects || [];
-    state.model = info.model || 'Sonnet';
+    state.model = info.model || 'Sonnet'; state.version = info.versions?.app || '';
     showSpend(info.spentUsd ?? 0, info.capUsd ?? 5);
     state.warm = info.keychainOk === true;
     $('spend').title = 'Spending today. Click for this chat and how much memory it has used.';

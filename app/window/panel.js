@@ -102,6 +102,7 @@ window.ChatPanel = (() => {
     if (u.contextPct == null) s.append(el('p', 'muted', 'Memory used: shows after the first reply.'));
     else { const m = el('progress'); m.max = 100; m.value = u.contextPct; m.setAttribute('aria-label', 'Memory used'); s.append(el('p', '', `Memory used: ${u.contextPct}%`), m); }
     s.append(el('p', 'panel-note', `Model: ${u.model}. Costs update when each reply finishes. They are Claude Code\'s own estimate at list prices; your Anthropic Console shows the exact bill. Spending stops at the daily cap and starts over at midnight. A long chat uses more memory; a new chat starts fresh.`), el('p', 'panel-note', 'Right-click the menu bar icon to quit, or to start the app when your Mac starts.'));
+    if (u.version) s.append(el('p', 'panel-note', `Menu Bar Chat version ${u.version}`)); // so a test can tell which build is running
     return s;
   }
 

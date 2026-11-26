@@ -10,6 +10,8 @@
 // the personal hub) run before this and are never loosened. Pure apart from reading real paths.
 import fs from 'node:fs';
 import path from 'node:path';
+import { commandEffect } from '../shared/describe.mjs';
+import { splitSteps } from '../shared/explain.mjs';
 
 const READS = new Set(['Read', 'Glob', 'Grep', 'TodoWrite', 'BashOutput']);
 const EDITS = { Edit: 'file_path', MultiEdit: 'file_path', Write: 'file_path', NotebookEdit: 'notebook_path' };
@@ -46,19 +48,51 @@ const CODE_DANGER = /\b(system|popen|subprocess|child_process|spawn|exec\w*|unli
 // Quoted text with the quotes' contents taken out, or null when quotes or backslashes could hide
 // a command's name ("sudo" ls, su\do ls run sudo): then the command asks.
 function outsideQuotes(cmd) {
-  if (/(^|[;|&(]|&&|\|\|)\s*["']/.test(cmd) || /\\./.test(cmd.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, ''))) return null;
-  return cmd.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
+  let out = ''; let q = null;
+  // Where a command name goes: the start, or after ; | & ( once any NAME=value words are past.
+  const atCommand = () => /^(\s*\w+=\S*)*\s*$/.test(out.split(/[;|&(]/).at(-1));
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (q) { if (ch === q) { q = null; out += '""'; } else if (q === '"' && ch === '\\') i++; continue; }
+    if (ch === '"' || ch === "'") { if (atCommand() || cmd[i - 1] === '$') return null; q = ch; continue; } // a quoted command name, or $'...'
+    if (ch === '\\') return null; // su\do runs sudo
+    out += ch;
+  }
+  return q ? null : out;
+}
+
+// `for f in $(find . -name "*.js"); do ...` (Bromo's prompt 2, Nov 26): a $(...) inside a command
+// goes ahead only when what's inside only looks and stays in the folder. Nested ones, backticks
+// and anything else still ask. Returns the command with each such $(...) swapped for a word.
+function lookingSubstitutions(cmd, root) {
+  let out = cmd;
+  for (let i = 0; i < 5 && /\$\(/.test(out); i++) {
+    const m = /\$\(([^()`$]*)\)/.exec(out);
+    if (!m) return null;
+    const inner = m[1];
+    if (commandEffect(splitSteps(inner), false) !== 'looks' || !commandStaysIn(inner, root, 'looks')) return null;
+    out = out.slice(0, m.index) + 'FOUND' + out.slice(m.index + m[0].length);
+  }
+  return /\$\(/.test(out) ? null : out;
 }
 
 /** Does a command stay in the project folder, with nothing on the always-ask list? */
 export function commandStaysIn(command, root, effect) {
   if (effect !== 'looks' && effect !== 'runs') return false; // deletes, the internet and the unknown ask
-  const cmd = String(command ?? '');
+  const cmd = lookingSubstitutions(String(command ?? ''), root);
+  if (cmd === null) return false;
   const words = outsideQuotes(cmd);
   if (!cmd.trim() || words === null || ASK_WORD.test(words) || RISKY_GIT.test(words) || RISKY_SHAPES.some((re) => re.test(cmd))) return false;
   if (INLINE_CODE.test(words) && CODE_DANGER.test(cmd)) return false;
-  const paths = cmd.match(/(?:^|[\s=:<>'"])(\/[^\s'";|&<>)]*)/g) || [];
-  return paths.map((m) => m.replace(/^[\s=:<>'"]/, '')).every((p) => p === '/dev/null' || insideProject(p, root, { self: true }));
+  return !pointsOutside(cmd, root);
+}
+
+/** Does a command name a place outside the project folder (.., ~, $HOME, or a path elsewhere)? */
+export function pointsOutside(command, root) {
+  const cmd = String(command ?? '');
+  if (/(^|[\s'"=:/])\.\.(\/|\s|$|['"])/.test(cmd) || /(^|[\s=:])~/.test(cmd) || /\$\{?(HOME|PWD|OLDPWD)\b/.test(cmd)) return true;
+  const paths = cmd.match(/(?:^|[\s=:<>'"(])(\/[^\s'";|&<>)]*)/g) || [];
+  return !paths.map((m) => m.replace(/^[\s=:<>'"(]/, '')).every((p) => p === '/dev/null' || insideProject(p, root, { self: true }));
 }
 
 /** Should Dev mode go ahead without a card? `card` is explainToolCall's result for this call. */
