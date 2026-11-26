@@ -16,18 +16,22 @@
 
   // One line above the chat box. A plain note clears itself; a problem stays until you close it.
   let noticeTimer = null;
-  function notice(text, bad) {
+  function notice(text, bad, fix) {
     const n = $('notice'); clearTimeout(noticeTimer);
     if (!text) { n.hidden = true; n.replaceChildren(); return; }
     n.replaceChildren(el('span', 'notice-text', text)); n.className = bad ? 'notice bad' : 'notice'; n.hidden = false;
+    if (fix) n.append(button(fix[0], 'btn btn-small', () => { notice(''); fix[1](); }));
     if (bad) n.append(button('Close', 'btn btn-small btn-quiet', () => notice('')));
     else noticeTimer = setTimeout(() => notice(''), 5000);
   }
-  // What's happening in this project, in two words, next to Send; and how many cards wait behind this one.
+  const last = new Map(); // project -> its last result, e.g. "Put away · Done · 4:02 PM"
+  const clock = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  function result(project, what) { if (project) { last.set(project, `${what} · ${clock()}`); showStatus(); } }
+  // What's happening in this project next to Send (or what last happened); and how many cards wait behind this one.
   function showStatus() {
     const mine = [...state.cards.values()].filter((c) => c.project === state.current).length;
     const others = new Set([...state.cards.values()].map((c) => c.project).filter((p) => p !== state.current));
-    const here = mine ? 'Waiting on you' : state.busy.has(state.current) ? 'Claude is working…' : '';
+    const here = mine ? 'Waiting on you' : state.busy.has(state.current) ? 'Claude is working…' : last.get(state.current) || '';
     const away = others.size ? `${here ? 'Also waiting' : 'Waiting'} in ${[...others].join(', ')}` : '';
     $('status').textContent = [here, away].filter(Boolean).join(' · '); $('status').title = $('status').textContent;
     const q = $('cards').querySelector('.queue') || $('cards').appendChild(el('p', 'queue'));
@@ -121,8 +125,9 @@
         Log.line(p, `Mode: ${ev.label}. ${MODE[ev.mode]?.[1] || ''}`.trim()); break;
       case 'why': if (!ev.seen) Log.line(p, 'No "Why:" line came before this change.'); break;
       case 'usage': state.chat.set(p, { chatUsd: ev.chatUsd, contextPct: ev.contextPct }); Panel.refresh(); break;
-      case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd); break;
-      case 'error': setBusy(p, false); notice(`${p}: ${ev.text}`, true); Log.line(p, ev.text, 'line-blocked'); break;
+      case 'turn_done': Log.endReply(p); setBusy(p, false); showSpend(ev.spentUsd, ev.capUsd);
+        result(p, ev.ok === false ? 'Reply · Stopped' : 'Reply · Done'); break;
+      case 'error': setBusy(p, false); notice(`${p}: ${ev.text}`, true); Log.line(p, ev.text, 'line-blocked'); result(p, 'Reply · Stopped'); break;
       case 'opened': $('input').focus(); Log.fit(); break;
       default: break;
     }
@@ -147,7 +152,8 @@
   async function start() {
     Log.init(api, { fill: (t) => { $('input').value = t; $('input').focus(); activity(); }, copy: (t) => { api.copy(t); notice('Copied.'); } });
     Panel.init({
-      api, notice, select: selectProject, setProjects, pickFirst, busy: (n) => state.busy.has(n), projects: () => state.projects, current: () => state.current,
+      api, notice, result, copy: (t) => { api.copy(t); notice('Copied.'); }, select: selectProject, setProjects, pickFirst,
+      busy: (n) => state.busy.has(n), projects: () => state.projects, current: () => state.current,
       usage: () => ({ spent: state.spent, cap: state.cap, model: state.model, version: state.version, ...(state.chat.get(state.current) || {}) }),
     });
     api.onEvent(onEvent);
@@ -158,7 +164,8 @@
     state.warm = info.keychainOk === true;
     $('spend').title = 'Spending today. Click for this chat and how much memory it has used.';
     if (!pickFirst()) return;
-    if (!info.keychainOk) notice('No API key in the Keychain yet, so Claude can\'t answer. See the README, then quit and reopen.', true);
+    const openCheckup = ['Open Checkup', () => Panel.show('checkup')];
+    if (!info.keychainOk) notice('No API key in the Keychain yet, so Claude can\'t answer. Press Open Checkup for the fix.', true, openCheckup);
     else if (!info.hotkey) notice('The hotkey Control-Option-Command-C is taken by another app. The menu bar icon still works.');
   }
 

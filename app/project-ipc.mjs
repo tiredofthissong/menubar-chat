@@ -69,7 +69,7 @@ export function createProjects({ ipcMain, dialog, window, fromOurWindow, home, u
     if (p.tag !== 'personal') return { ok: false, error: 'Put away is for personal projects, because work never goes to GitHub.' };
     const why = await check(p.path, p.repo);
     if (why) return { ok: false, error: why };
-    try { await trash(p.path); } catch { return { ok: false, error: "The folder couldn't go to the Trash, so nothing changed." }; }
+    try { await trash(p.path); } catch { return { ok: false, error: "The folder couldn't go to the Trash, so nothing changed. Close any app using files in it, then press Put away again." }; }
     return { ...save(setAway(list, name, true)), text: `${name} is safe on GitHub and its folder is in the Trash. Pick it in the list to copy it back.` };
   }));
   ipcMain.handle('projects:bringBack', guard(async (name) => {

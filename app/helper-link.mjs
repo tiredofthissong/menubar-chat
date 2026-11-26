@@ -23,7 +23,7 @@ export function createHelperLink({ fork, entry, boot, onEvent, onExit = () => {}
     c.on('exit', (code) => {
       if (child !== c) return;
       child = null;
-      for (const done of calls.values()) done({ ok: false, error: 'The background helper stopped, so nothing was approved. Send your message again.' });
+      for (const done of calls.values()) done({ ok: false, error: 'The background helper stopped, so nothing was approved. Press Send to start it again.' });
       calls.clear();
       onExit(code);
     });

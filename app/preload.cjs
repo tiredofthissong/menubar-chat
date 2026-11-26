@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('menubarChat', {
   bringBack: (project) => ipcRenderer.invoke('projects:bringBack', project),
   setTag: (project, tag) => ipcRenderer.invoke('projects:tag', project, tag),
   blockPushes: (project) => ipcRenderer.invoke('projects:block', project),
+  checkup: (project) => ipcRenderer.invoke('checkup:run', String(project ?? '').slice(0, 200)), // read-only checks
   hide: () => ipcRenderer.send('hide'),
   fit: (height) => ipcRenderer.send('fit', height),
   activity: (a) => ipcRenderer.send('activity', a),

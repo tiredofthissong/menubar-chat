@@ -95,7 +95,7 @@ export function createHelper({ projects, sdk, budget, settings, log, send }) {
       return redactDeep(await actions[v.cmd.type](s, v.cmd));
     } catch (e) {
       log.error('helper', 'command failed', { type: v.cmd.type, error: e });
-      return { ok: false, error: 'Something went wrong in the background helper. Nothing was approved.' };
+      return { ok: false, error: 'Something went wrong in the background helper. Nothing was approved. Press Send to try again.' };
     }
   }
 

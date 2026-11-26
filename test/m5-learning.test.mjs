@@ -216,6 +216,6 @@ test('window: learn links go through the checked list, starters fill the box, Wr
   assert.match(log, /\(\) => fill\?\.\(s\)/, 'a starter fills the box');
   assert.doesNotMatch(log.slice(log.indexOf('function emptyState')), /^.*api\.send/m, 'a starter never sends by itself');
   assert.match(panel, /confirm\(s, 'Add a dated note about this chat to the end of HANDOFF\.md/);
-  assert.match(panel, /'Add the note', async \(\) => say\(await ctx\.api\.wrapUp\(name\)\)/, 'Wrap up runs only after the second answer');
+  assert.match(panel, /'Add the note', async \(\) => say\(await ctx\.api\.wrapUp\(name\), 'Wrap up'\)/, 'Wrap up runs only after the second answer');
   assert.match(app, /if \(state\.warm\) api\.warm\(name\)/);
 });

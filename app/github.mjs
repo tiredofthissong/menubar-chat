@@ -47,7 +47,7 @@ export async function cloneRepo(ref, home, git = run) {
   if (fs.existsSync(dest)) {
     const r = await git(['remote', 'get-url', 'origin'], dest);
     const same = r.ok && parseRepo(r.out)?.owner.toLowerCase() === ref.owner.toLowerCase() && parseRepo(r.out)?.repo.toLowerCase() === ref.repo.toLowerCase();
-    return same ? { ok: true, folder: dest, reused: true } : { ok: false, error: `~/GitHub/${ref.repo} already holds something else, so nothing was copied.` };
+    return same ? { ok: true, folder: dest, reused: true } : { ok: false, error: `~/GitHub/${ref.repo} already holds something else, so nothing was copied. Rename or move that folder in Finder, then press Add from GitHub again.` };
   }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const r = await git(['clone', '--quiet', url(ref), dest], path.dirname(dest));

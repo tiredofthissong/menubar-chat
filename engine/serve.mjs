@@ -43,7 +43,7 @@ export function serveHelper(port, { sdk, spawn = null, log = createLogger(), exi
       return;
     }
     if (msg.kind === 'command') {
-      const result = helper ? await helper.handleCommand(msg.cmd) : { ok: false, error: 'The background helper is still starting.' };
+      const result = helper ? await helper.handleCommand(msg.cmd) : { ok: false, error: 'The background helper is still starting. Wait a few seconds, then try again.' };
       post({ kind: 'reply', id: msg.id, result });
       return;
     }

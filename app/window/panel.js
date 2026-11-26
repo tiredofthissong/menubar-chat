@@ -3,6 +3,7 @@
 //             chat, change the tag, add the push block to a work repo, and put a GitHub project away
 //             (its folder to the Trash, kept in the list) or copy it back by picking it.
 //   Usage:    drawn by usage-panel.js.
+//   Checkup:  drawn by checkup-panel.js. Read-only checks, each problem ending with the button that fixes it.
 //   Wrap up:  adds one dated note about this chat to HANDOFF.md in the project folder.
 // Anything that changes a setting or a repo asks first, in the panel, with two answers that look
 // the same and neither picked.
@@ -10,10 +11,14 @@
 window.ChatPanel = (() => {
   const { $, el, button } = window.ChatDom;
   let ctx = null; let open = null;
-  const PANELS = { projects: ['panel-projects', 'project'], usage: ['panel-usage', 'spend'] };
+  const PANELS = { projects: ['panel-projects', 'project'], usage: ['panel-usage', 'spend'], checkup: ['panel-checkup', 'checkup'] };
 
   const when = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
-  const say = (r) => { if (r && r.ok === false && !r.canceled) ctx.notice(r.error || r.text, true); else if (r?.text) ctx.notice(r.text); return r; };
+  const say = (r, what) => {
+    if (r && r.ok === false && !r.canceled) ctx.notice(r.error || r.text, true); else if (r?.text) ctx.notice(r.text);
+    if (what && r && !r.canceled) ctx.result(ctx.current(), `${what} · ${r.ok === false ? 'Didn\'t work' : 'Done'}`);
+    return r;
+  };
 
   function section(title) { const s = el('div', 'panel-section'); s.append(el('h2', 'panel-title', title)); return s; }
   /** A question asked in place: two answers that look the same, neither picked. */
@@ -55,10 +60,14 @@ window.ChatPanel = (() => {
     return s;
   }
   /** Pick from your repos or type one; the app copies it to ~/GitHub and adds it as Personal (github-row.js). */
-  function githubRow(where) { window.ChatGithubRow.open(where, ctx, say, (r) => { ctx.setProjects(r.projects); ctx.select(r.added); render(); }); }
+  function githubRow(where) {
+    window.ChatGithubRow.open(where, ctx, say, (r) => {
+      ctx.result(ctx.current(), 'Add from GitHub · Done'); ctx.setProjects(r.projects); ctx.select(r.added); render();
+    });
+  }
   async function bringBack(p, b) {
     b.disabled = true; ctx.notice(`Copying ${p.name} back from GitHub…`);
-    const r = say(await ctx.api.bringBack(p.name));
+    const r = say(await ctx.api.bringBack(p.name), 'Copy back');
     if (r?.ok) { ctx.setProjects(r.projects); ctx.select(p.name); render(); } else b.disabled = false;
   }
   /** Put away: the app checks nothing lives only on this Mac, then moves the folder to the Trash. */
@@ -71,13 +80,13 @@ window.ChatPanel = (() => {
       confirm(s, ask, 'Keep it here', 'Put away', async () => {
         const r = await ctx.api.putAway(p.name);
         if (r?.ok) { ctx.setProjects(r.projects); ctx.pickFirst(); render(); }
-        say(r);
+        say(r, 'Put away');
       });
     }));
     return s;
   }
   async function saveFolder(tag) {
-    const r = say(await ctx.api.addFolder(tag));
+    const r = say(await ctx.api.addFolder(tag), 'Add a folder');
     if (r?.ok) { ctx.setProjects(r.projects); ctx.select(r.added); render(); }
   }
 
@@ -85,7 +94,7 @@ window.ChatPanel = (() => {
     const s = section(`Chats in ${name}`);
     const row = el('div', 'row');
     const wrap = () => confirm(s, 'Add a dated note about this chat to the end of HANDOFF.md in this folder? Nothing else changes.',
-      'Cancel', 'Add the note', async () => say(await ctx.api.wrapUp(name)));
+      'Cancel', 'Add the note', async () => say(await ctx.api.wrapUp(name), 'Wrap up'));
     row.append(button('New chat', 'btn btn-small', () => { ctx.api.newChat(name).then(say); close(); }),
       button('Wrap up this chat', 'btn btn-small btn-quiet', wrap));
     s.append(row);
@@ -125,12 +134,15 @@ window.ChatPanel = (() => {
     if (p.pushBlock === 'off') {
       const ask = 'Add the push block? It puts a small file in this repo\'s .git/hooks folder that makes git refuse every push. It is never committed.';
       s.append(button('Add push block', 'btn btn-small btn-quiet', () => confirm(s, ask, 'Cancel', 'Add push block', async () => {
-        const r = say(await ctx.api.blockPushes(p.name)); if (r?.projects) { ctx.setProjects(r.projects); render(); }
+        const r = say(await ctx.api.blockPushes(p.name), 'Push block'); if (r?.projects) { ctx.setProjects(r.projects); render(); }
       })));
     }
     return s;
   }
-  async function tag(name, t) { const r = say(await ctx.api.setTag(name, t)); if (r?.ok) { ctx.setProjects(r.projects); ctx.select(name); render(); } }
+  async function tag(name, t) {
+    const r = say(await ctx.api.setTag(name, t), t === 'work' ? 'Make it work' : 'Make it personal');
+    if (r?.ok) { ctx.setProjects(r.projects); ctx.select(name); render(); }
+  }
 
   function render() {
     if (open === 'projects') {
@@ -139,6 +151,7 @@ window.ChatPanel = (() => {
       $('panel-projects').replaceChildren(projectList(), ...(p ? [chats(p.name), safety(p), ...away] : []));
     }
     if (open === 'usage') $('panel-usage').replaceChildren(...window.ChatUsagePanel.sections(ctx, say, section));
+    if (open === 'checkup') $('panel-checkup').replaceChildren(...window.ChatCheckupPanel.sections(ctx, say, section));
   }
   function toggle(which) {
     const was = open; close(false);
@@ -160,6 +173,7 @@ window.ChatPanel = (() => {
     ctx = c;
     $('project').addEventListener('click', () => toggle('projects'));
     $('spend').addEventListener('click', () => toggle('usage'));
+    $('checkup').addEventListener('click', () => toggle('checkup'));
   }
-  return { init, close, refresh: () => render() };
+  return { init, close, show: (which) => { if (open !== which) toggle(which); }, refresh: () => { if (open !== 'checkup') render(); } };
 })();

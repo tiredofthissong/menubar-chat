@@ -17,12 +17,12 @@
 - **Buttons:** three ranks, never colored by meaning: primary (Send only), default (a filled gray button with no outline, the way Mac buttons look: the card answers, starters, next steps), quiet (no fill, gray text, for lesser actions in panels). Every button is at least 32px tall with a 40px target (an invisible margin), card answers and list rows are a full 40px, and labels sit centered on one line. Hover only where there is a pointer.
 - **Light and dark:** both, following the Mac's setting. `npm test` checks every text and control pairing against WCAG 2.2 AA in both (4.5:1 text, 3:1 edges and focus) and that every color fits in sRGB.
 - **Layout:** one column, 480px wide, top to bottom:
-  1. **The bar, one line:** the project name (a quiet button with a caret), its tag as plain text, and today's spend on the right. Two controls in one style, nothing else.
+  1. **The bar, one line:** the project name (a quiet button with a caret), its tag as plain text, then **Checkup** and today's spend on the right. Three controls in one style, nothing else.
   2. **The stage:** the conversation, the only part that scrolls. A panel lies over it as its own surface.
   3. **The card tray:** what waits on you, docked right above the chat box, **one card at a time**, with "1 of 3 waiting" above it when more wait. The next one shows when you answer. The tray scrolls only if a single card is taller than most of the window.
   4. **The notice:** one line just above the chat box, never over the conversation or a panel. A plain note ("Copied.") clears itself after a few seconds; a problem stays until you press **Close**.
   5. **The chat box:** the text box full width, then a row with the mode menu, a status line, Stop and Send.
-- **Status line** (next to Send): "Waiting on you", "Claude is working…", and "Waiting in garden-app" when a card waits in another project. Coming back after hours, it says where things stand without opening anything.
+- **Status line** (next to Send): "Waiting on you", "Claude is working…", and "Waiting in garden-app" when a card waits in another project. When nothing is happening it keeps the last result in this project with its time ("Put away · Done · 4:02 PM", "Reply · Stopped", "Checkup · Passed"). Coming back after hours, it says where things stand without opening anything. It sits beside the next-step buttons and doesn't replace them: the buttons are what to do next, the line is what just happened.
 - **Claude's replies** sit on the page, full width, without a bubble; what you typed is the one gray bubble (the teal stays for Send and focus). Status lines in a row group tightly.
 - **Not the generic AI look** (Bromo: "avoid the 'vibe-code' look"): no outline on every button, no colored user bubble, the copy button under a reply shows only when you point at the reply or tab to it, a problem notice is a small ! and plain words instead of a red box, and Stop shows only while Claude is working.
 - **Motion:** only a small press on buttons, and only when Reduce Motion is off. The menu bar icon holds still with Reduce Motion on.
@@ -126,6 +126,13 @@ The most important screen in the app.
 - **Dev mode** (Bromo: "the allow prompts are too many"). A third mode in the mode menu. Claude Code runs in its normal asking mode; the app answers its asks without a card only for steps that stay in the project folder: reading, changing or creating files there (not in `.git`), and commands whose every path is in the folder. It still asks for anything outside the folder or in home or system folders, deletes, the internet (installs, downloads, push and pull), connected apps, helpers, `sudo` and system tools, and git steps that throw work away. A link that leads out of the folder counts as outside. The hard rules run first and are never loosened, change cards and Undo still come, and the chat lists every step. Turning it on says all this in the chat.
 - **Claude knows who it's working for.** The app tells Claude that you use this chat instead of a terminal or editor: it never asks you to edit a file or run a command yourself, it offers to do it. Before it calls work done or suggests a demo, it runs the project's tests and checks and says what is still untested. (Bromo, after Claude told him to edit plants.json in a code editor.)
 - **How accurate it is.** The figures update when each reply finishes, from Claude Code's own estimate at list prices. The Anthropic Console has the exact bill; the panel says so.
+
+## Checkup and problem messages (Nov 26, from Bromo's TimeCapsuleSMB notes)
+
+- **Checkup** (in the bar): the title with a pill (Passed, Look at, or Failed in red), one plain line, **Run checkup**, the counts, then rows grouped as **This Mac** (API key, background helper, GitHub sign-in, today's spend) and **this project** (folder, Work or Personal, push block). Each row is a mark, a label and one sentence. Color is only on the mark and label, and the words say the same. It runs as it opens and changes nothing.
+- **Every problem ends with its fix,** naming the exact button ("press Add push block", "Press Send to start it again"). Where there's only a Terminal way, the row says so and has **Copy command**, with the command behind **Show the command**. Long paths wait behind **Details**.
+- **The missing-key note** above the chat box has an **Open Checkup** button.
+- **Popover only for v1** (Bromo's pick): no full window with a sidebar yet; the Projects panel does that job.
 
 ## Known gaps
 

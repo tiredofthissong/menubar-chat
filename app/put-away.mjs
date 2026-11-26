@@ -12,10 +12,10 @@ export async function whyNotPutAway(folder, repo, git = run) {
   const origin = await git(['remote', 'get-url', 'origin'], folder);
   const ref = parseRepo(origin.out); const want = parseRepo(repo);
   if (!origin.ok || !ref || !want || `${ref.owner}/${ref.repo}`.toLowerCase() !== `${want.owner}/${want.repo}`.toLowerCase()) {
-    return `This folder isn't linked to ${repo} on GitHub any more, so it stays on your Mac.`;
+    return `This folder isn't linked to ${repo} on GitHub any more, so it stays on your Mac. Ask Claude in this project to link it again.`;
   }
   const status = await git(['status', '--porcelain', '--ignored=matching'], folder);
-  if (!status.ok) return "Git couldn't read this folder, so it stays on your Mac.";
+  if (!status.ok) return "Git couldn't read this folder, so it stays on your Mac. Ask Claude in this project to check it.";
   // Each line is a one- or two-letter code, then the file. The output comes trimmed, so the first
   // line can lose its leading space; reading the code this way works either way.
   const lines = (status.out ? status.out.split('\n') : []).map((l) => l.match(/^\s*(\S{1,2})\s+(.*)$/)).filter(Boolean);
@@ -29,7 +29,7 @@ export async function whyNotPutAway(folder, repo, git = run) {
   const fetched = await git(['fetch', '--quiet', 'origin'], folder);
   if (!fetched.ok) return "Couldn't reach GitHub to check, so the folder stays on your Mac. Try again when you're online.";
   const refs = await git(['for-each-ref', '--format=%(refname:short)|%(upstream)|%(upstream:track)', 'refs/heads'], folder);
-  if (!refs.ok) return "Git couldn't list this folder's branches, so it stays on your Mac.";
+  if (!refs.ok) return "Git couldn't list this folder's branches, so it stays on your Mac. Ask Claude in this project to check it.";
   for (const line of refs.out ? refs.out.split('\n') : []) {
     const [branch, upstream, track] = line.split('|');
     if (!upstream || /gone/.test(track)) return `The branch ${branch} is only on this Mac. Ask Claude to push it first.`;

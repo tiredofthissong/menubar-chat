@@ -6,7 +6,6 @@ import menubarPkg from 'menubar';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { execFile } from 'node:child_process';
 import { KEYCHAIN_SERVICE, DEFAULT_MODEL } from '../engine/options.mjs';
 import { validateCommand } from '../shared/contract.mjs';
 import { redact } from '../shared/redact.mjs';
@@ -19,6 +18,7 @@ import { createLearning } from './learning.mjs';
 import { isLearnLink } from '../shared/learn.mjs';
 import { createHandoffOpener } from './handoff-open.mjs';
 import { createLoginItem, trayMenuTemplate, withCommonPaths } from './login-item.mjs';
+import { createCheckup, keychainHasKey } from './checkup.mjs';
 
 const { menubar } = menubarPkg;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -42,11 +42,6 @@ const tuck = new TuckTimer({
   state: () => ({ visible: !!mb?.window?.isVisible(), ...activity, pendingCards, busy }),
 });
 
-const keychainHasKey = () => new Promise((resolve) => {
-  // Asks only whether the item exists; without -w the secret itself is never printed.
-  execFile('/usr/bin/security', ['find-generic-password', '-s', KEYCHAIN_SERVICE], (err) => resolve(!err));
-});
-
 const send = (ev) => mb?.window?.webContents.send('event', ev);
 const handoff = createHandoffOpener({ shell, send });
 
@@ -67,7 +62,7 @@ const link = createHelperLink({
   onEvent,
   onExit: () => {
     pendingCards = 0; busy = 0; animator?.setState('error'); mb?.tray.setToolTip('Needs a look: the background helper stopped');
-    for (const p of projects.list) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Send your message again to restart it.' });
+    for (const p of projects.list) send({ type: 'error', project: p.name, code: 'helper-lost', text: 'The background helper stopped, so nothing was approved. Press Send to start it again.' });
   },
 });
 
@@ -154,6 +149,7 @@ app.whenReady().then(() => {
     onChange: (list) => link.projects(list),
   });
   learning = createLearning({ ipcMain, shell, fromOurWindow, file: path.join(app.getPath('userData'), 'learning-log.jsonl') });
+  createCheckup({ ipcMain, fromOurWindow, helperOk: () => link.running, spend: () => ({ spent: spentUsd, cap: CAP_USD }), projects: () => projects });
   // Before the window exists: menubar loads the page while it starts, and the page asks
   // for 'init' straight away.
   wireIpc();

@@ -83,7 +83,7 @@ export class ProjectSession {
       for await (const m of q) this.onMessage(m);
     } catch (e) {
       this.log?.warn('engine', 'query ended with an error', { project: this.project.name, error: e });
-      this.emit(event('error', { code: 'engine-lost', text: 'The connection to Claude ended. Your files are safe; send your message again to restart.' }));
+      this.emit(event('error', { code: 'engine-lost', text: 'The connection to Claude ended. Your files are safe. Press Send to start it again.' }));
       this.setStatus('error', 'connection ended');
     } finally {
       if (this.q === q) { this.q = null; this.input = null; }
@@ -166,7 +166,7 @@ export class ProjectSession {
     const was = this.mode;
     this.mode = r.mode; // set first, so a start frame that arrives meanwhile matches
     if (r.mode !== was && this.q) {
-      try { if (claudeCodeMode(r.mode) !== claudeCodeMode(was)) await this.q.setPermissionMode(claudeCodeMode(r.mode)); } catch { this.mode = was; return { ok: false, text: "Claude didn't take the new mode, so it stays as it was." }; }
+      try { if (claudeCodeMode(r.mode) !== claudeCodeMode(was)) await this.q.setPermissionMode(claudeCodeMode(r.mode)); } catch { this.mode = was; return { ok: false, text: "Claude didn't take the new mode, so it stays as it was. Pick it again in the mode menu." }; }
     }
     if (r.mode !== was) this.permit.pass.end(); // the web pass ends when you switch mode
     this.noteMode(r.mode);

@@ -30,7 +30,7 @@ export async function listRepos({ token = gitToken, get = fetch } = {}) {
   try {
     for (let page = 1; page <= PAGES; page++) {
       const r = await get(`${API}&page=${page}`, { headers: { Authorization: `Bearer ${t}`, Accept: 'application/vnd.github+json', 'User-Agent': 'menu-bar-chat' } });
-      if (r.status === 401) return { ok: false, error: "GitHub didn't accept this Mac's sign-in, so the list can't load. You can still type a repo below." };
+      if (r.status === 401) return { ok: false, error: "GitHub didn't accept this Mac's sign-in, so the list can't load. Ask Claude in any project to sign this Mac in to GitHub again, then press Refresh. You can still type a repo below." };
       if (!r.ok) return { ok: false, error: "GitHub didn't send the list just now. Try Refresh, or type the repo below." };
       const batch = await r.json();
       if (!Array.isArray(batch)) break;

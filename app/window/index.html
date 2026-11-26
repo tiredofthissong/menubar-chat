@@ -17,6 +17,8 @@
           title="Switch project, pick up a past chat, work or personal">Project</button>
         <span id="tag" class="tag">work</span>
         <span class="spacer"></span>
+        <button type="button" id="checkup" class="bar-btn bar-quiet" aria-expanded="false" aria-controls="panel-checkup"
+          title="Check that the app can work: API key, helper, GitHub, spend and this project">Checkup</button>
         <button type="button" id="spend" class="bar-btn meter num" aria-expanded="false" aria-controls="panel-usage"
           aria-live="polite">$0.00 of $5 today</button>
       </header>
@@ -26,6 +28,7 @@
         <section id="log" class="log" tabindex="0" aria-live="polite" aria-label="Conversation"></section>
         <section id="panel-projects" class="panel" aria-label="Projects and chats" hidden></section>
         <section id="panel-usage" class="panel" aria-label="Usage" hidden></section>
+        <section id="panel-checkup" class="panel" aria-label="Checkup" hidden></section>
       </div>
 
       <!-- What waits on you sits right above the chat box, one card at a time. -->
@@ -60,6 +63,7 @@
   <script src="cards.js" defer></script>
   <script src="github-row.js" defer></script>
   <script src="usage-panel.js" defer></script>
+  <script src="checkup-panel.js" defer></script>
   <script src="panel.js" defer></script>
   <script src="app.js" defer></script>
 </body>
