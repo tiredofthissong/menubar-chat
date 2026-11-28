@@ -7,7 +7,6 @@ Why: sessions saved old copies over newer work, and a HANDOFF entry vanished twi
 - Archive, don't delete. Text taken out of a file moves to an archive file (like HANDOFF-archive.md) or stays in version history, and the change is logged. Git history and OneDrive version history are the archive; nothing is purged.
 - Guards back this up: a git pre-push hook on every machine (claude-rules/scripts/git-hooks), Claude Code deny rules, and a history-guard Action in every repo that saves an archive branch if history is ever rewritten. Never bypass or switch them off (`--no-verify`, changing `core.hooksPath`); if one blocks you, stop and tell me. Every new project gets them: run `install-mac.sh --project <folder>`.
 
-
-Full shared rules: claude-rules/AGENTS.md (private). Guards: scripts/git-hooks/pre-push and .github/workflows/history-guard.yml.
+Full shared rules: claude-rules/AGENTS.md (private). Guards: claude-rules/scripts/git-hooks/pre-push and this repo's .github/workflows/history-guard.yml.
 
 <!-- END claude-rules/AGENTS.md#saving -->
