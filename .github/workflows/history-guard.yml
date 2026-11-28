@@ -1,0 +1,37 @@
+# History guard (claude-rules AGENTS.md, "Saving: never overwrite, archive everything").
+# If a push ever rewrites history (force push) or deletes a branch, this saves the old tip
+# as a branch named archive/<branch>-<UTC time>, so nothing is lost, then fails the run so
+# GitHub emails Bromo. It does nothing (and uses no Actions minutes) on normal pushes.
+# Copied into each repo by claude-rules/scripts/install-mac.sh --project. Edit the template
+# in claude-rules/templates/, not this copy.
+name: history-guard
+on:
+  push:
+permissions:
+  contents: write
+jobs:
+  archive:
+    if: github.event.forced || github.event.deleted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save the old tip as an archive branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          FORCED: ${{ github.event.forced }}
+          DELETED: ${{ github.event.deleted }}
+        run: |
+          case "$BEFORE" in *[!0]*) ;; *) echo "Nothing to save: the branch was new."; exit 0 ;; esac
+          name="archive/${REF}-$(date -u +%Y%m%dT%H%M%SZ)"
+          gh api "repos/$REPO/git/refs" -f ref="refs/heads/$name" -f sha="$BEFORE" >/dev/null
+          what="force push"; [ "$DELETED" = "true" ] && what="branch delete"
+          {
+            echo "### History guard: $what on \`$REF\`"
+            echo "The old tip \`${BEFORE:0:7}\` is saved as branch \`$name\`. Nothing was lost."
+            echo "New tip: \`${AFTER:0:7}\`. Pushes like this break the never-overwrite rule; find out which tool did it."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::History guard: $what on $REF. Old tip ${BEFORE:0:7} saved as $name."
+          exit 1
